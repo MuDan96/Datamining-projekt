@@ -1,99 +1,79 @@
-🌬️ Datamining: Dashboard Kvality Ovzdušia (Praha)
-Tento projekt je komplexný analytický nástroj, ktorý sťahuje, čistí a vizualizuje dáta o kvalite ovzdušia v Prahe za posledných 30 dní. Využíva verejné dáta z Golemio API a pretvára ich do interaktívneho, prehľadného HTML dashboardu.
+# 🎓 Datamining a vizualizácia: Kvalita ovzdušia v Prahe (Smart City Analytics)
 
-🚀 Hlavné funkcie
-Automatizovaný zber dát: Skript sťahuje historické dáta z 17 meracích staníc deň po dni, pričom obsahuje robustnú ochranu proti výpadkom servera (automatický Retry systém).
+Tento repozitár obsahuje zdrojové kódy a dokumentáciu k semestrálnemu projektu zameranému na dolovanie dát (datamining) a interaktívnu geopriestorovú vizualizáciu. Aplikácia je napísaná v jazyku **Python** s využitím frameworku **Streamlit** (ako moderná alternatíva k R/Shiny).
 
-Čistenie a transformácia (Pandas): Spracovanie chýbajúcich časových značiek, odfiltrovanie neplatných hodnôt a zoskupenie dát do hodinových intervalov.
+🌍 **Živá ukážka aplikácie (Live App):** *[Doplň sem URL z tvojho Streamlitu, napr. https://aq-praha.streamlit.app]*
 
-Animovaná teplotná mapa (Plotly): Interaktívna mapa s posuvníkom času, ktorá ukazuje, ako sa koncentrácia rôznych látok prelieva mestom v priebehu 30 dní.
+---
 
-Dlhodobá analýza a zdravotný kontext: Výpočet 30-dňových priemerov pre jednotlivé stanice a zložky (PM10, PM2.5, NO2, O3, SO2). Dashboard obsahuje edukatívne kartičky s vysvetlením zdravotných rizík.
+## 👥 Autorský tím a rozdelenie rolí
+* **Timea Halászová:** Manažment projektu a definícia byznys modelu. Príprava manažérskeho zhrnutia. *(Naučila sa prepájať tvrdé dáta z API s reálnym komerčným využitím v Smart City segmente).*
+* **Zuzana Mitterová:** Metodika výskumu a vizualizácia dát (Plotly). *(Zdokonalila sa v princípoch Data Storytellingu a tvorbe interaktívnych geopriestorových máp).*
+* **Bojan Petric:** Data engineering a čistenie dát. *(Osvojil si prácu s knižnicou Pandas, tvorbu agregačných funkcií a riešenie anomálií v reálnych senzorických dátach).*
+* **Daniel Mucska:** Vývoj architektúry a API integrácia (Streamlit). *(Naučil sa budovať robustné dátové pipeline, parsovať komplexné JSON štruktúry a ošetrovať výpadky serverov).*
 
-All-in-One Export: Výsledkom je jeden samostatný .html súbor, ktorý je možné otvoriť v akomkoľvek prehliadači bez potreby bežiaceho servera.
+---
 
-🛠️ Požiadavky a inštalácia
-Pre spustenie skriptu je potrebné mať nainštalovaný Python a nasledujúce knižnice:
+## 📊 1. Manažérske zhrnutie (Executive Summary)
+Náš projekt predstavuje plne automatizovaný dataminingový dashboard, ktorý v reálnom čase integruje dáta z nezávislých API rozhraní. Nástroj spracováva historické aj aktuálne dáta o kvalite ovzdušia v Prahe a vizualizuje ich v 4D priestore (geolokácia + čas). Výstupom sú exaktné vedecké dôkazy o vplyve dopravy a prírodných faktorov na znečistenie, podané vo forme interaktívnych reportov pre top manažment mesta a urbanistov.
 
-Bash
-pip install requests pandas plotly urllib3
-💻 Ako to funguje?
-Naklonujte si repozitár.
+## 💼 2. Definícia problému a byznysový prínos
+* **Definícia problému:** Mesto Praha čelí zníženej kvalite života obyvateľov kvôli smogovým situáciám. Chýba však centralizovaný nástroj, ktorý by na jedno kliknutie koreloval stav ovzdušia s dopravnými špičkami, poveternostnými podmienkami a mapou mestskej zelene.
+* **Byznysový prínos:**
+  1. **Optimalizácia dopravy:** Nástroj exaktne identifikuje kritické hodiny a úseky, čo umožňuje efektívnejšie riadenie dopravy (dynamické mýto, nízkoemisné zóny).
+  2. **Real Estate a urbanizmus:** Potvrdenie "ochrannej funkcie" parkov poskytuje tvrdé dáta pri naceňovaní nehnuteľností v blízkosti zelene.
+  3. **Zdravotníctvo:** Predikcia smogových cyklov umožňuje včasné varovanie rizikových skupín obyvateľstva.
 
-Spustite hlavný skript:
+## 🧬 3. Vstupné dáta a metodika (Data Fusion)
+Projekt spája dáta z 3 nezávislých zdrojov pomocou metódy *Inner Join* cez časové a priestorové kľúče:
+* **Golemio API (v2):** Primárny zdroj. Zber hodinových koncentrácií znečisťujúcich látok (NO2, PM10, PM2.5, O3) z oficiálnych IoT senzorov mesta.
+* **Open-Meteo API:** Historické meteorologické dáta (rýchlosť vetra) priradené k časovým značkám senzorov.
+* **Overpass API (OpenStreetMap):** Extrakcia priestorových polygónov mestskej zelene (najväčšie pražské parky).
 
-Bash
-python kompletny_skript.py
-Skript začne sťahovať dáta (môže to trvať niekoľko sekúnd, nakoľko sťahuje viac ako 30 000 záznamov).
+**Pracovný postup čistenia (ETL):** Skript ošetruje chýbajúce hodnoty (`None`), odstraňuje anomálne záporné hodnoty senzorov, unifikuje názvoslovie analytov a extrahuje z ISO časových značiek nové premenné (`hour`, `day_name`) pre potreby agregácie.
 
-Po dokončení sa v priečinku objavia dva nové súbory:
+## 🔬 4. Formulované otázky a hypotézy
+1. **H1 (Víkendový útlm):** Existuje kauzalita medzi dňami pracovného pokoja a poklesom dopravných emisií? *(Očakávame víkendový útlm NO2).*
+2. **H2 (Dopravné špičky):** Majú denné emisie bimodálny charakter? *(Očakávame rannú a poobednú špičku počas pracovných dní).*
+3. **H3 (Disperzia vetrom):** Je rýchlosť prúdenia vzduchu inverzne korelovaná s hladinou pevných častíc? *(Očakávame, že silnejší vietor rapídne znižuje PM10).*
+4. **H4 (Vplyv zelene):** Pôsobí mestská zeleň ako izolačná bariéra proti znečisteniu? *(Očakávame nižšie dlhodobé koncentrácie v okolí parkov).*
 
-prague_air_quality_data.csv – Vyčistené zdrojové dáta pre prípadnú ďalšiu analýzu.
+## 💡 5. Výsledky a závery
+Všetky 4 definované hypotézy boli na základe dolovania dát úspešne **verifikované**:
+* Dáta jednoznačne usvedčujú individuálnu automobilovú dopravu ako hlavného emitenta NO2 (signifikantný pokles cez víkendy a jasne identifikovateľné ranné špičky).
+* Štatistická OLS regresia dokázala, že vietor čistí mesto od prachu (inverzná korelácia).
+* Geopriestorové mapy potvrdili, že oblasti v bezprostrednom okolí mestských parkov fungujú ako ochranné zóny s najčistejším ovzduším v meste.
 
-dashboard_ovzdusie_praha.html – Hotový interaktívny dashboard. Otvorte tento súbor v prehliadači.
+---
 
-⚠️ Dôležité upozornenie k API kľúču
-Skript momentálne obsahuje ukážkový (hardcoded) API kľúč k službe Golemio. Pre produkčné použitie alebo vlastný vývoj si prosím vygenerujte vlastný kľúč na portáli Golemio Data a zvážte jeho načítavanie cez .env súbor kvôli bezpečnosti.
+## 🛠️ Návod na spustenie projektu lokálne
 
-👥 Autori
-Na tomto dataminingovom projekte pracovali:
+Projekt vyžaduje nainštalovaný **Python 3.14+**.
 
-Timea Halászová
+**1. Klonovanie repozitára:**
 
-Zuzana Mitterová
+git clone [https://github.com/MuDan96/Datamining-projekt.git](https://github.com/MuDan96/Datamining-projekt.git)
+_cd Datamining-projekt_
 
-Bojan Petric
+**2. Inštalácia potrebných knižníc:**
 
-Daniel Mucska
+Aplikácia využíva knižnice definované v súbore requirements.txt. Nainštalujete ich príkazom:
 
-Tento projekt bol vytvorený na študijné/analytické účely a ukážku práce s priestorovými dátami.
+_pip install -r requirements.txt_
 
-🌬️ Air Quality Datamining Dashboard (Prague)
-This project is a comprehensive analytical tool designed to fetch, clean, and visualize air quality data in Prague over the last 30 days. It leverages public data from the Golemio API and transforms raw datasets into a professional, interactive HTML dashboard.
+**3. Spustenie Streamlit servera:**
 
-🚀 Key Features
-Automated Data Collection: The script fetches historical data from 17 monitoring stations day-by-day, featuring a robust automated Retry system to handle server-side interruptions.
+_streamlit run air_app.py_
 
-Data Cleaning & Transformation (Pandas): Handles missing timestamps, filters out invalid readings, and re-sequences time series into consistent hourly intervals for smooth visualization.
+_Následne sa automaticky otvorí prehliadač s bežiacim dashboardom na adrese http://localhost:8501._
 
-Animated Heatmap (Plotly): An interactive map with a time slider that illustrates how the concentration of various pollutants flows through the city over a 30-day period.
+### 3. Súbor: `requirements.txt`
+*Ak by si ho náhodou na GitHube nemal aktuálny, musí obsahovať presne toto:*
 
-Long-term Analysis & Health Context: Calculates 30-day averages for each station and pollutant (PM10, PM2.5, NO2, O3, SO2). The dashboard includes educational cards explaining the health risks associated with each substance.
-
-All-in-One Export: Generates a standalone .html file that can be opened in any web browser without the need for a running backend server.
-
-🛠️ Requirements & Installation
-To run this script, you need Python installed along with the following libraries:
-
-Bash
-pip install requests pandas plotly urllib3
-💻 How It Works
-Clone the repository.
-
-Run the main script:
-
-Bash
-python kompletny_skript.py
-The script will begin downloading data (this may take 10-20 seconds as it retrieves over 30,000 records).
-
-Once finished, two new files will appear in your directory:
-
-prague_air_quality_data.csv – Cleaned source data for further analysis.
-
-dashboard_ovzdusie_praha.html – The final interactive dashboard. Open this file in your browser.
-
-⚠️ API Key Security Note
-The script currently contains a hardcoded demonstration API key for Golemio. For production use or further development, please generate your own key at the Golemio Data Portal and consider loading it via an .env file for improved security.
-
-👥 Authors
-This datamining project was developed by:
-
-Timea Halászová
-
-Zuzana Mitterová
-
-Bojan Petric
-
-Daniel Mucska
-
-This project was created for educational and analytical purposes to demonstrate spatial data processing and visualization.
+```text
+streamlit
+pandas
+plotly
+requests
+numpy
+statsmodels

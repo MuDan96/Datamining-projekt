@@ -15,10 +15,8 @@ st.set_page_config(page_title="AQ Praha: Multi-Source Datamining", layout="wide"
 
 st.markdown("""
     <style>
-    /* Čistý, svetlý dizajn vhodný pre vysokoškolskú prácu */
     .stApp { background-color: #f8f9fa; color: #2c3e50; }
     
-    /* Vlastný štýl pre vedecké karty */
     .veda-card {
         background-color: #ffffff; border-radius: 10px; padding: 25px; 
         margin-bottom: 20px; border-left: 5px solid #3498db;
@@ -30,7 +28,6 @@ st.markdown("""
         padding: 15px; color: #16a085; font-weight: bold; margin-top: 20px; border-radius: 4px;
     }
     
-    /* Úprava tabov */
     .stTabs [data-baseweb="tab-list"] { gap: 10px; }
     .stTabs [data-baseweb="tab"] {
         background-color: #ffffff; border: 1px solid #e0e0e0;
@@ -69,13 +66,11 @@ def load_golemio_data(start_date, end_date):
     session = get_session()
     session.headers.update({"X-Access-Token": API_KEY})
     
-    # 1. Stanice
     try:
         r = session.get("https://api.golemio.cz/v2/airqualitystations", params={"limit": 1000})
         stations_dict = {s['properties']['id']: {'name': s['properties']['name'], 'lon': s['geometry']['coordinates'][0], 'lat': s['geometry']['coordinates'][1]} for s in r.json().get('features', [])}
     except: return pd.DataFrame()
 
-    # 2. Merania
     enriched_data = []
     for from_dt, to_dt in generate_date_chunks(start_date, end_date, days=1):
         try:
@@ -83,7 +78,7 @@ def load_golemio_data(start_date, end_date):
             if resp.status_code == 413: continue
             
             measurements = resp.json().get('data', []) if isinstance(resp.json(), dict) else resp.json()
-            station_counters = {} # Pôvodná funkčná logika na čas
+            station_counters = {} 
             
             for record in measurements:
                 s_id = record.get('id', '')
@@ -118,14 +113,13 @@ def load_chmu_data():
         res = requests.get(url, timeout=10).json()
         data = []
         for region in res.get('Data', {}).get('States', [])[0].get('Regions', []):
-            if region.get('Code') == 'A': # A = Praha
-                for st in region.get('Stations', []):
-                    for comp in st.get('Components', []):
+            if region.get('Code') == 'A': 
+                for st_info in region.get('Stations', []):
+                    for comp in st_info.get('Components', []):
                         val = comp.get('IntInt', {}).get('value')
                         if val is not None and val > 0:
                             data.append({
-                                'name': f"ČHMÚ {st.get('Name')}", 'lat': st.get('Lat'), 'lon': st.get('Lon'),
-                                'datetime': datetime.now().strftime('%Y-%m-%d %H:00:00'), # Aktuálny čas
+                                'name': f"ČHMÚ {st_info.get('Name')}", 'lat': st_info.get('Lat'), 'lon': st_info.get('Lon'),
                                 'type': comp.get('Code'), 'value': val, 'zdroj': 'ČHMÚ (Štátne)'
                             })
         return pd.DataFrame(data)
@@ -135,29 +129,22 @@ def load_chmu_data():
 @st.cache_data(ttl=1800, show_spinner="Sťahujem Sensor.Community (Občania)...")
 def load_sensor_community():
     try:
-        # Dáta v okruhu 15km od Prahy
         url = "https://data.sensor.community/airrohr/v1/filter/area=50.0755,14.4378,15"
         res = requests.get(url, timeout=10).json()
         data = []
-        
         for item in res:
             lat, lon = float(item['location']['latitude']), float(item['location']['longitude'])
             s_name = f"Senzor {item['sensor']['id']} (Občan)"
             for val_obj in item.get('sensordatavalues', []):
                 v_type = val_obj['value_type']
                 val = float(val_obj['value'])
-                # Preklad ich kódov na naše
-                mapped_type = None
-                if v_type == 'P1': mapped_type = 'PM10'
-                elif v_type == 'P2': mapped_type = 'PM2_5'
+                mapped_type = 'PM10' if v_type == 'P1' else ('PM2_5' if v_type == 'P2' else None)
                 
                 if mapped_type and val > 0:
                     data.append({
                         'name': s_name, 'lat': lat, 'lon': lon,
-                        'datetime': datetime.now().strftime('%Y-%m-%d %H:00:00'),
                         'type': mapped_type, 'value': val, 'zdroj': 'Sensor.Community'
                     })
-        # Aby sme nepreplnili mapu, zoberieme len vzorku 30 najnovších senzorov
         df = pd.DataFrame(data)
         if not df.empty: return df.sample(min(50, len(df))) 
         return df
@@ -172,7 +159,7 @@ def load_parks():
     except: return pd.DataFrame()
 
 # ============================================
-# 3. SIDEBAR A SPRACOVANIE DÁT
+# 3. SIDEBAR A ZROVNANIE ČASOV (DATA FUSION)
 # ============================================
 st.sidebar.image("https://golemio.cz/themes/custom/golemio_theme/logo.svg", width=120)
 st.sidebar.title("Nastavenia analýzy")
@@ -183,7 +170,7 @@ date_range = st.sidebar.date_input("Rozsah dátumov (od - do)",
 if len(date_range) != 2: st.stop()
 start_d, end_d = date_range
 
-# Sťahovanie zo všetkých zdrojov
+# 1. Sťahovanie
 df_golemio = load_golemio_data(start_d, end_d)
 df_chmu = load_chmu_data()
 df_sensors = load_sensor_community()
@@ -192,10 +179,33 @@ if df_golemio.empty:
     st.error("Pre tento rozsah API Golemio nevrátilo dáta. Skúste vybrať iný rozsah (napr. pred 2 týždňami).")
     st.stop()
 
-# DATA FUSION - Spojenie všetkých zdrojov do jedného mega-datasetu!
-df_all = pd.concat([df_golemio, df_chmu, df_sensors], ignore_index=True)
+# 2. ZROVNANIE ČASOV (KLÚČOVÁ OPRAVA)
+# Namapujeme aktuálne dáta ČHMÚ a Senzorov na všetky dostupné časy v Golemiu, 
+# aby sme ich videli na mape pri akejkoľvek zvolenej hodine ako "referenčnú vrstvu".
+df_golemio['datetime'] = pd.to_datetime(df_golemio['datetime'])
+unique_times = df_golemio['datetime'].unique()
 
-df_all['datetime'] = pd.to_datetime(df_all['datetime'])
+chmu_list = []
+if not df_chmu.empty:
+    for t in unique_times:
+        temp = df_chmu.copy()
+        temp['datetime'] = t
+        chmu_list.append(temp)
+df_chmu_expanded = pd.concat(chmu_list, ignore_index=True) if chmu_list else pd.DataFrame()
+
+sensors_list = []
+if not df_sensors.empty:
+    for t in unique_times:
+        temp = df_sensors.copy()
+        temp['datetime'] = t
+        sensors_list.append(temp)
+df_sensors_expanded = pd.concat(sensors_list, ignore_index=True) if sensors_list else pd.DataFrame()
+
+# Spojenie do jedného datasetu
+df_all = pd.concat([df_golemio, df_chmu_expanded, df_sensors_expanded], ignore_index=True)
+
+# Prečistenie dát
+df_all['type'] = df_all['type'].replace({'PM2.5': 'PM2_5'})
 df_all['hour'] = df_all['datetime'].dt.hour
 df_all['day_name'] = df_all['datetime'].dt.day_name()
 df_all['date_str'] = df_all['datetime'].dt.date
@@ -210,13 +220,11 @@ st.write(f"Integrované zdroje: **Golemio API, ČHMÚ Open Data, Sensor.Communit
 
 tabs = st.tabs(["🌍 Priestorová Mapa", "📈 Časové Trendy", "📉 H1: Víkendy", "🚗 H2: Špičky", "🌲 H3: Vplyv Zelene"])
 
-# --- TAB 1: ŽIVÁ MAPA (NATÍVNA OPEN-STREET-MAP) ---
+# --- TAB 1: ŽIVÁ MAPA ---
 with tabs[0]:
     st.markdown("### Geopriestorová distribúcia znečistenia (Data Fusion)")
+    st.info("💡 **Metodika:** Mapa zobrazuje historické dáta z Golemia pre zvolený čas. Údaje z ČHMÚ a Sensor.Community reprezentujú najnovšie dostupné merania (vložené do celej osi pre neustále plošné porovnanie).")
     c1, c2, c3 = st.columns([2,2,3])
-    
-    # Odstránenie "PM2.5" duplicity (Sensor.Community to môže vrátiť inak)
-    df_all['type'] = df_all['type'].replace({'PM2.5': 'PM2_5'})
     
     sel_type = c1.selectbox("Zvoľ látku (Analyt)", sorted(df_all['type'].unique()))
     sel_d = c2.selectbox("Dátum", sorted(df_all['date_str'].unique(), reverse=True))
@@ -224,14 +232,11 @@ with tabs[0]:
     
     df_map = df_all[(df_all['type']==sel_type) & (df_all['date_str']==sel_d) & (df_all['hour']==sel_h)]
     
-    if df_map.empty:
-        st.warning("Pre túto hodinu sa nenašli spoločné dáta. Pre aktuálne dáta ČHMÚ/Senzorov zvoľte dnešný dátum a aktuálnu hodinu.")
-    else:
-        # NÁVRAT K NÁDHERNEJ, RÝCHLEJ MAPE! (mapbox_style="open-street-map")
+    if not df_map.empty:
         fig1 = px.scatter_mapbox(df_map, lat="lat", lon="lon", size="value", color="value",
                                  hover_name="name", hover_data={"zdroj": True, "value": True},
                                  size_max=45, zoom=10.5, color_continuous_scale="Reds", 
-                                 mapbox_style="open-street-map")
+                                 mapbox_style="open-street-map") # Rýchla a krásna natívna mapa
         
         fig1.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, height=650)
         
@@ -243,8 +248,8 @@ with tabs[0]:
 
 # --- TAB 2: ČASOVÉ TRENDY ---
 with tabs[1]:
-    st.markdown("### Detailný časový vývoj z Golemia")
-    st.write("Časový rad je vykreslený z primárneho Golemio datasetu.")
+    st.markdown("### Detailný časový vývoj (Golemio)")
+    st.write("Časový rad je vykreslený primárne z Golemio datasetu, aby sa zabezpečila historická presnosť.")
     sel_trend = st.selectbox("Vyber analyt pre časový rad", sorted(df_golemio['type'].unique()), key="tr")
     
     fig_trend = px.line(df_golemio[df_golemio['type']==sel_trend].sort_values('datetime'), x='datetime', y='value', color='name')
@@ -302,7 +307,6 @@ with tabs[4]:
         if a in df_all['type'].unique():
             with cols[i%2]:
                 st.write(f"**Priemerná záťaž: {a}**")
-                # Opäť krásna open-street-map pre malé mapky
                 fig_h4 = px.scatter_mapbox(df_avg[df_avg['type']==a], lat="lat", lon="lon", size="value", 
                                            color="value", hover_name="name", hover_data={"zdroj": True},
                                            size_max=35, zoom=9.5, color_continuous_scale="Reds", 

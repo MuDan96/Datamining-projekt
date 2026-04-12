@@ -36,10 +36,12 @@ st.markdown("""
     }
     .stTabs [aria-selected="true"] { background-color: #3498db !important; color: #ffffff !important; }
     
-    /* OPRAVENÝ KPI BOX (Tmavé pozadie, biely text pre čitateľnosť) */
     .kpi-box {
         background-color: #111111; color: #ffffff; padding: 15px; border-radius: 8px;
         box-shadow: 0 4px 10px rgba(0,0,0,0.2); margin-bottom: 15px; border: 1px solid #333; font-size: 15px;
+    }
+    .author-box {
+        font-size: 14px; color: #7f8c8d; margin-top: 5px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -149,7 +151,6 @@ def convert_df_to_csv(df):
 # ============================================
 # 3. SIDEBAR A OVLÁDANIE
 # ============================================
-# Zrušený rozbitý obrázok, nahradené pekným nadpisom
 st.sidebar.markdown("<h1>📊 AQ Praha Panel</h1>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 st.sidebar.markdown("## ⚙️ Parametre analýzy")
@@ -200,6 +201,17 @@ st.sidebar.download_button(
     mime="text/csv"
 )
 
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 👥 Autorský tím")
+st.sidebar.markdown("""
+<div class="author-box">
+• Timea Halászová<br>
+• Zuzana Mitterová<br>
+• Bojan Petric<br>
+• Daniel Mucska
+</div>
+""", unsafe_allow_html=True)
+
 # ============================================
 # 4. HLAVNÁ STRÁNKA A ÚVOD
 # ============================================
@@ -211,7 +223,7 @@ Primárnym zdrojom dát je oficiálne **Golemio API**, z ktorého sú extrahovan
 Dáta sú dynamicky prepájané s geografickými entitami (mestské parky cez *Overpass API*) a historickými meteorologickými údajmi (*Open-Meteo*).
 Cieľom práce je overiť vplyv antropogénnej činnosti (najmä automobilovej dopravy) a prírodných faktorov na celkový stav ovzdušia pomocou štyroch stanovených hypotéz.
 
-*Analyzované obdobie: **{start_d.strftime('%d.%m.%Y')} - {end_d.strftime('%d.%m.%Y')}***
+*Analyzované obdobie: **{start_d.strftime('%d.%m.%Y')} - {end_d.strftime('%d.%m.%Y')}*** *Autorský tím: **Timea Halászová, Zuzana Mitterová, Bojan Petric, Daniel Mucska***
 """)
 
 tabs = st.tabs(["🌍 Priestorová Mapa", "📈 Časové Trendy", "📉 H1: Víkendový útlm", "🚗 H2: Dopravné špičky", "🌬️ H3: Disperzia vetrom", "🌲 H4: Ochranný vplyv zelene"])

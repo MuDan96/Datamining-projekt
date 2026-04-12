@@ -2,7 +2,7 @@
 
 Tento repozitár obsahuje zdrojové kódy a dokumentáciu k semestrálnemu projektu zameranému na dolovanie dát (datamining) a interaktívnu geopriestorovú vizualizáciu. Aplikácia je napísaná v jazyku **Python** s využitím frameworku **Streamlit** (ako moderná alternatíva k R/Shiny).
 
-🌍 **Živá ukážka aplikácie (Live App): https://datamining-projekt2026.streamlit.app **
+🌍 **Živá ukážka aplikácie (Live App): https://datamining-projekt2026.streamlit.app**
 
 ---
 

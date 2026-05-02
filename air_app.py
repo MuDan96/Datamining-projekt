@@ -63,7 +63,12 @@ st.markdown("""
 
 # API kľúč pre Golemio. V reálnej produkcii by bol uložený v env premenných (st.secrets),
 # ale pre potreby hodnotenia študentského projektu ho nechávame viditeľný, aby si kód vedel každý spustiť.
-API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NTE0OSwiaWF0IjoxNzc1Mjg5Njc4LCJleHAiOjExNzc1Mjg5Njc4LCJpc3MiOiJnb2xlbWlvIiwianRpIjoiZjFhOTkwODAtMjAyOS00MjhkLWFmZWEtY2ZlYTZmNGQ2MTRiIn0.3qCQB37FFlsE9jDPz0JVf8h1cbqqfNlmC9XQ6BY_Hmc"
+try:
+    API_KEY = st.secrets["GOLEMIO_API_KEY"]
+except KeyError:
+    st.error("Chyba: API kľúč nie je nastavený. Pre produkciu nastavte 'GOLEMIO_API_KEY' v Streamlit Secrets.")
+    st.stop()
+
 BASE_URL = "https://api.golemio.cz/v2"
 
 def get_session():

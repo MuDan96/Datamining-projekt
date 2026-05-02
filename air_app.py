@@ -225,8 +225,16 @@ df_parks = load_parks()
 
 available_pollutants = sorted(df_all['type'].unique())
 
-# VÝPOČET TOXICKÝCH HODÍN
-toxic_hours = len(df_all[((df_all['type'] == 'NO2') & (df_all['value'] > 25)) | ((df_all['type'] == 'PM10') & (df_all['value'] > 45)) | ((df_all['type'] == 'PM2_5') & (df_all['value'] > 15))])
+# VÝPOČET TOXICKÝCH HODÍN (Opravená analytika)
+# 1. Najprv vyfiltrujeme všetky merania, ktoré prekročili WHO limity
+toxic_measurements = df_all[
+    ((df_all['type'] == 'NO2') & (df_all['value'] > 25)) | 
+    ((df_all['type'] == 'PM10') & (df_all['value'] > 45)) | 
+    ((df_all['type'] == 'PM2_5') & (df_all['value'] > 15))
+]
+
+# 2. Spočítame UNIKÁTNE hodiny (datetime), kedy k takémuto prekročeniu niekde v meste došlo
+toxic_hours = toxic_measurements['datetime'].nunique()
 
 st.sidebar.markdown("## 📈 Miera ohrozenia")
 st.sidebar.markdown(f"""

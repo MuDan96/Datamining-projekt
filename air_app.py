@@ -351,31 +351,61 @@ elif app_mode == "📊 Zdravotný Dashboard":
     # Najprv sa ukáže "Hlavný prehľad" (Executive Summary), potom "Akčný plán", a až za nimi sú detailné analytické moduly 1 až 4.
     tabs = st.tabs(["📊 Hlavný prehľad", "📋 Akčný plán pre Magistrát", "🌍 1. Priestorová toxicita", "🏥 2. Medicínske profily", "🚗🌬️ 3. Mobilita a Počasie", "🌲 4. Urbanizmus a Zeleň"])
 
-    # --- TAB 0: HLAVNÝ PREHĽAD (EXECUTIVE SUMMARY) ---
+# --- TAB 0: HLAVNÝ PREHĽAD (EXECUTIVE SUMMARY) ---
     with tabs[0]:
         st.markdown("<div class='audit-title'>📊 Executive Summary: Manažérsky prehľad zistení</div>", unsafe_allow_html=True)
         
-        # --- NOVÉ: VÝPOČTY PRE KPI METRIKY (BIG NUMBERS) ---
+        # --- VÝPOČTY PRE KPI METRIKY (BIG NUMBERS) ---
         target_pol = 'NO2' if 'NO2' in available_pollutants else available_pollutants[0]
         
-        # Nájdenie stanice s najvyšším priemerným znečistením
-        worst_station = df_all[df_all['type'] == target_pol].groupby('name')['value'].mean().idxmax()
+        # Extrémy: Najhoršia vs. Najlepšia stanica
+        station_means = df_all[df_all['type'] == target_pol].groupby('name')['value'].mean()
+        worst_station = station_means.idxmax()
+        best_station = station_means.idxmin()
         
-        # Nájdenie dňa s najvyšším znečistením a jeho formátovanie
+        # Deň s najvyšším znečistením
         worst_day_obj = df_all[df_all['type'] == target_pol].groupby('date_str')['value'].mean().idxmax()
         worst_day = worst_day_obj.strftime('%d.%m.%Y') if hasattr(worst_day_obj, 'strftime') else str(worst_day_obj)
         
-        # Vykreslenie 3 kľúčových metrík vedľa seba
-        k1, k2, k3 = st.columns(3)
-        k1.markdown(f"<div class='danger-card' style='text-align:center; padding: 15px;'><b>Celkové toxické hodiny</b><br><h2 style='color:#e74c3c; margin:0;'>{toxic_hours}</h2><span style='font-size:12px'>Prekročenie WHO limitov</span></div>", unsafe_allow_html=True)
-        k2.markdown(f"<div class='danger-card' style='text-align:center; padding: 15px;'><b>Najkritickejšia lokalita</b><br><h4 style='color:#e74c3c; margin:0; padding-top:6px;'>{worst_station}</h4><span style='font-size:12px'>Najvyššie priemerné zaťaženie</span></div>", unsafe_allow_html=True)
-        k3.markdown(f"<div class='danger-card' style='text-align:center; padding: 15px;'><b>Najhorší deň auditu</b><br><h2 style='color:#e74c3c; margin:0;'>{worst_day}</h2><span style='font-size:12px'>Maximum denných emisií</span></div>", unsafe_allow_html=True)
+        # Výpočet percenta času v toxicite
+        total_hours_analyzed = df_all['datetime'].nunique()
+        toxic_percentage = round((toxic_hours / total_hours_analyzed) * 100, 1) if total_hours_analyzed > 0 else 0
+        
+        # Vykreslenie 4 kľúčových metrík (KPI kariet) vedľa seba
+        k1, k2, k3, k4 = st.columns(4)
+        k1.markdown(f"""
+        <div class='danger-card' style='text-align:center; padding: 15px;'>
+            <b>Podiel toxicity</b><br>
+            <h2 style='color:#e74c3c; margin:0;'>{toxic_percentage} %</h2>
+            <span style='font-size:11px'>Z celkového času auditu</span>
+        </div>""", unsafe_allow_html=True)
+        
+        k2.markdown(f"""
+        <div class='danger-card' style='text-align:center; padding: 15px;'>
+            <b>Najkritickejšia zóna</b><br>
+            <h4 style='color:#e74c3c; margin:0; padding-top:6px; font-size:16px;'>{worst_station}</h4>
+            <span style='font-size:11px'>Centrum smogu ({target_pol})</span>
+        </div>""", unsafe_allow_html=True)
+        
+        k3.markdown(f"""
+        <div class='med-card' style='text-align:center; padding: 15px; border-left: 5px solid #27ae60; background-color: #eafaf1;'>
+            <b>Najbezpečnejšia zóna</b><br>
+            <h4 style='color:#27ae60; margin:0; padding-top:6px; font-size:16px;'>{best_station}</h4>
+            <span style='font-size:11px'>Odporúčané pre astmatikov</span>
+        </div>""", unsafe_allow_html=True)
+        
+        k4.markdown(f"""
+        <div class='danger-card' style='text-align:center; padding: 15px;'>
+            <b>Najhorší deň v meste</b><br>
+            <h2 style='color:#e74c3c; margin:0;'>{worst_day}</h2>
+            <span style='font-size:11px'>Maximum plošných emisií</span>
+        </div>""", unsafe_allow_html=True)
 
         st.markdown("<hr style='margin-top: 5px; margin-bottom: 25px;'>", unsafe_allow_html=True)
 
         colA, colB = st.columns([1, 1])
         with colA:
-            # --- NOVÉ: ZÁVEREČNÝ VERDIKT ---
+            # ZÁVEREČNÝ VERDIKT
             st.markdown("""
             <div class='audit-card' style='border-left: 5px solid #e74c3c; background-color: #fdf2e9;'>
             <h4 style='color: #c0392b; margin-top: 0;'>⚖️ ZÁVEREČNÝ VERDIKT AUDITU: NEVYHOVUJÚCI</h4>
@@ -383,7 +413,7 @@ elif app_mode == "📊 Zdravotný Dashboard":
             </div>
             """, unsafe_allow_html=True)
             
-            # Pôvodné zhrnutie 1-4
+            # Textové zhrnutie 1-4
             st.markdown("""
             <div class='audit-card'>
             <b>Zhrnutie diagnostiky auditu:</b><br><br>
@@ -397,14 +427,13 @@ elif app_mode == "📊 Zdravotný Dashboard":
         with colB:
             st.write("**Celkový trend preťaženia v sledovanom období:**")
             st.write("*Graf zobrazuje dennú priemernú koncentráciu hlavných látok (NO2 a PM10) vypočítanú zo všetkých mestských senzorov.*")
-            # AGREGÁCIA PRE HLAVNÝ GRAF: Vypočítame celomestský denný priemer pre NO2 a PM10
+            # AGREGÁCIA PRE HLAVNÝ GRAF
             df_trend = df_all[df_all['type'].isin(['NO2', 'PM10'])].groupby(['date_str', 'type'])['value'].mean().reset_index()
             if not df_trend.empty:
-                # Vykreslenie prehľadného čiarového grafu s trendom
                 fig_summary = px.line(df_trend, x='date_str', y='value', color='type', markers=True, labels={'date_str': 'Dátum', 'value': 'Priemerná koncentrácia (µg/m³)', 'type': 'Látka'}, color_discrete_sequence=['#c0392b', '#2980b9'])
-                fig_summary.update_layout(height=450, margin={"r":0,"t":10,"l":0,"b":0}) # Zväčšená výška, aby to vizuálne sedelo so stĺpcom A
+                fig_summary.update_layout(height=450, margin={"r":0,"t":10,"l":0,"b":0})
                 st.plotly_chart(fig_summary, use_container_width=True)
-
+                
     # --- TAB 1: ODPORÚČANIA PRE MAGISTRÁT (MAPA ZÁSAHU) ---
     with tabs[1]:
         st.markdown("<div class='audit-title'>📋 Komplexný akčný plán: Záväzné odporúčania pre Magistrát hl. m. Prahy</div>", unsafe_allow_html=True)

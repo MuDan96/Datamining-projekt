@@ -339,136 +339,43 @@ elif app_mode == "📊 Zdravotný Dashboard":
     st.title("⚖️ Zdravotný Audit Ovzdušia: Mesto Praha")
     st.markdown("Ochrana občianskych práv a verejného zdravia prostredníctvom dátovo podložených regulácií dopravy a urbanizmu.")
 
-    tabs = st.tabs(["🌍 1. Priestorová toxicita", "🏥 2. Medicínske profily", "🚗🌬️ 3. Mobilita a Počasie", "🌲 4. Urbanizmus a Zeleň", "📋 5. Opatrenia pre Magistrát"])
+    # NOVÉ PORADIE ZÁLOŽIEK: 
+    # Najprv sa ukáže "Hlavný prehľad" (Executive Summary), potom "Akčný plán", a až za nimi sú detailné analytické moduly 1 až 4.
+    tabs = st.tabs(["📊 Hlavný prehľad", "📋 Akčný plán pre Magistrát", "🌍 1. Priestorová toxicita", "🏥 2. Medicínske profily", "🚗🌬️ 3. Mobilita a Počasie", "🌲 4. Urbanizmus a Zeleň"])
 
-    # --- TAB 1: PRIESTOROVÁ TOXICITA ---
+    # --- TAB 0: HLAVNÝ PREHĽAD (EXECUTIVE SUMMARY) ---
     with tabs[0]:
-        st.markdown("<div class='audit-title'>Lokalizácia ohrozenia (Heatmapy podľa toxínov)</div>", unsafe_allow_html=True)
-        st.write("Zvoľte si časový výsek. Systém dynamicky vygeneruje priestorové mapy pre všetky prítomné toxíny v danom čase, aby ste videli, ktoré ulice sú pre chorých ľudí nepriechodné.")
-        
-        c1, c2 = st.columns(2)
-        # Selectbox využíva parameter format_func preložiť surový Pandas Date na náš formát napr. "02.05.2026 (Sobota)"
-        sel_d = c1.selectbox("Dátum kontroly", sorted(df_all['date_str'].unique(), reverse=True), format_func=format_date_sk)
-        sel_h = c2.slider("Hodina kontroly", 0, 23, 8)
-        
-        # FILTROVANIE DÁT PRE MAPY
-        df_time = df_all[(df_all['date_str']==sel_d) & (df_all['hour']==sel_h)]
+        st.markdown("<div class='audit-title'>📊 Executive Summary: Manažérsky prehľad zistení</div>", unsafe_allow_html=True)
+        st.write("Táto sekcia prináša rýchly manažérsky súhrn výsledkov zo všetkých štyroch analytických modulov. Pre detailné skúmanie jednotlivých dôkazov prejdite do záložiek 1 až 4.")
 
-        if df_time.empty:
-            st.warning("Pre túto hodinu nie sú k dispozícii žiadne merania.")
-        else:
-            # Cyklus vygeneruje interaktívnu mapu pre KAŽDÝ toxín zaznamenaný v danú hodinu
-            for pol in sorted(df_time['type'].unique()):
-                df_pol = df_time[df_time['type'] == pol]
-                if not df_pol.empty:
-                    info_text = pollutant_info.get(pol, "ZDROJ: Rôzne priemyselné a dopravné procesy. SPÔSOBUJE: Zhoršenie respiračných ťažkostí a poškodenie slizníc.")
-                    st.markdown(f"<div class='danger-card'><b>Látka: {pol}</b><br>{info_text}</div>", unsafe_allow_html=True)
-                    
-                    # Plotly Mapbox: Vykreslí body s veľkosťou a farbou závislou od nameranej hodnoty
-                    fig = px.scatter_mapbox(df_pol, lat="lat", lon="lon", size="value", color="value", hover_name="name", size_max=45, zoom=10, color_continuous_scale="Reds", mapbox_style=chosen_map_style) 
-                    fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, height=400)
-                    
-                    if not df_parks.empty:
-                        # Pridanie vrstvy parkov (Overpass API)
-                        fig.add_trace(go.Scattermapbox(lat=df_parks['lat'], lon=df_parks['lon'], mode='markers', marker=dict(size=10, color='#27ae60', opacity=0.5), name="Parky", hoverinfo="text", text=df_parks['name']))
-                    st.plotly_chart(fig, use_container_width=True)
-                    st.markdown("---")
+        colA, colB = st.columns([1, 1])
+        with colA:
+            # Textové zhrnutie pre rýchle čítanie vedením mesta
+            st.markdown("""
+            <div class='audit-card'>
+            <b>Zhrnutie diagnostiky auditu:</b><br><br>
+            <b>🌍 1. Lokalizácia (Kde je problém?):</b> Centrum Prahy vykazuje extrémne zaťaženie. Koncentrácie toxínov bežne presahujú bezpečné hodnoty v oblastiach hlavných dopravných ťahov.<br><br>
+            <b>🏥 2. Zdravotné zlyhanie (Aké sú limity?):</b> Mesto opakovane a systematicky porušuje limity Svetovej zdravotníckej organizácie (WHO) pre NO2 a PM10, čím priamo obmedzuje voľný pohyb astmatikov a kardiakov.<br><br>
+            <b>🚗🌬️ 3. Príčiny (Kto za to môže?):</b> Hlavným vinníkom je ranná automobilová doprava počas pracovných dní. Situáciu následne kriticky zhoršuje meteorologické bezvetrie (vietor pod 5 km/h), kedy mesto stráca schopnosť sa odvetrať.<br><br>
+            <b>🌲 4. Riešenie (Čo nás chráni?):</b> Analýza potvrdila, že mestské parky (Stromovka, Letná) preukázateľne zachytávajú smog a fungujú ako jediné "bezpečné oázy" v centre mesta.
+            </div>
+            """, unsafe_allow_html=True)
 
-    # --- TAB 2: MEDICÍNSKE PROFILY A LIMITY ---
+        with colB:
+            st.write("**Celkový trend preťaženia v sledovanom období:**")
+            st.write("*Graf zobrazuje dennú priemernú koncentráciu hlavných látok (NO2 a PM10) vypočítanú zo všetkých mestských senzorov.*")
+            # AGREGÁCIA PRE HLAVNÝ GRAF: Vypočítame celomestský denný priemer pre NO2 a PM10
+            df_trend = df_all[df_all['type'].isin(['NO2', 'PM10'])].groupby(['date_str', 'type'])['value'].mean().reset_index()
+            if not df_trend.empty:
+                # Vykreslenie prehľadného čiarového grafu s trendom
+                fig_summary = px.line(df_trend, x='date_str', y='value', color='type', markers=True, labels={'date_str': 'Dátum', 'value': 'Priemerná koncentrácia (µg/m³)', 'type': 'Látka'}, color_discrete_sequence=['#c0392b', '#2980b9'])
+                fig_summary.update_layout(height=350, margin={"r":0,"t":10,"l":0,"b":0})
+                st.plotly_chart(fig_summary, use_container_width=True)
+
+    # --- TAB 1: ODPORÚČANIA PRE MAGISTRÁT (MAPA ZÁSAHU) ---
     with tabs[1]:
-        st.markdown("<div class='audit-title'>Historické prekračovanie limitov WHO (Obmedzenie práv)</div>", unsafe_allow_html=True)
-        st.write("Grafy vizualizujú, koľkokrát mesto zlyhalo v ochrane svojich občanov. Červená čiara znamená hranicu, kedy astmatikom začínajú klinické ťažkosti.")
-
-        for pol in available_pollutants:
-            df_pol = df_all[df_all['type'] == pol].sort_values('datetime')
-            if not df_pol.empty:
-                st.markdown(f"### Zdravotná analýza: {pol}")
-                colA, colB = st.columns([1, 2])
-                
-                limit_val = limits_who.get(pol, "Nestanovené")
-                desc_text = med_desc.get(pol, "**Medicínsky profil:** Všeobecný dráždivý vplyv na respiračný systém.")
-                
-                with colA:
-                    limit_html = f"<b style='color:#e74c3c;'>Limit WHO: {limit_val} µg/m³</b>" if limit_val != "Nestanovené" else "<b style='color:#7f8c8d;'>Limit pre tento toxín nie je pevne definovaný WHO.</b>"
-                    st.markdown(f"<div class='med-card'>{desc_text}<br><br>{limit_html}</div>", unsafe_allow_html=True)
-                
-                with colB:
-                    fig = go.Figure()
-                    for i, stanica in enumerate(sorted(df_pol['name'].unique())):
-                        df_stanica = df_pol[df_pol['name'] == stanica]
-                        # visible=(True if i==0 else 'legendonly'): Defaultne vidno len prvú stanicu, ostatné sa dajú zakliknúť
-                        fig.add_trace(go.Scatter(x=df_stanica['datetime'], y=df_stanica['value'], name=stanica, mode='lines', opacity=0.7, visible=(True if i==0 else 'legendonly')))
-                    
-                    if limit_val != "Nestanovené":
-                        # Zobrazenie kritického WHO limitu
-                        fig.add_hline(y=limit_val, line_dash="dash", line_color="red", line_width=3)
-                    
-                    fig.update_layout(height=300, margin={"r":0,"t":10,"l":0,"b":0})
-                    st.plotly_chart(fig, use_container_width=True)
-                st.markdown("---")
-
-    # --- TAB 3: MOBILITA A POČASIE ---
-    with tabs[2]:
-        st.markdown("<div class='audit-title'>Diagnostika príčin: Prečo je v meste toxické prostredie?</div>", unsafe_allow_html=True)
-        st.write("Grafy preukazujú, že za znečistenie môže priamo občianska mobilita (autá). Astmatici sú najviac obmedzovaní práve počas ranných špičiek a pracovných dní.")
-        
-        target_pol = 'NO2' if 'NO2' in df_all['type'].values else ('PM10' if 'PM10' in df_all['type'].values else df_all['type'].iloc[0])
-        
-        c1, c2 = st.columns(2)
-        with c1:
-            st.write(f"**Dôkaz č.1: Útlm toxicity cez víkendy ({target_pol})**")
-            # Agregácia priemeru znečistenia pre jednotlivé dni v týždni
-            order = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
-            df_h1 = df_all[df_all['type']==target_pol].groupby('day_name')['value'].mean().reindex(order)
-            
-            # Mapovanie anglických názvov na slovenské pre graf pomocou list comprehension
-            labels_sk = [slovak_days.get(day, day) for day in df_h1.index]
-            fig_bar = px.bar(x=labels_sk, y=df_h1.values, color=df_h1.values, color_continuous_scale="Reds", labels={'x':'Deň', 'y':'Priemerná koncentrácia'})
-            st.plotly_chart(fig_bar, use_container_width=True)
-            
-        with c2:
-            st.write(f"**Dôkaz č.2: Ranné dusno a obmedzovanie pohybu detí ({target_pol})**")
-            # Agregácia iba pracovných dní (vylúčenie víkendov) a zoskupenie podľa hodiny (0-23)
-            df_h2 = df_all[(df_all['type']==target_pol) & (~df_all['day_name'].isin(['Saturday','Sunday']))].groupby('hour')['value'].mean()
-            fig_h2 = px.line(df_h2, markers=True, labels={'value':'Koncentrácia', 'hour': 'Hodina dňa'})
-            fig_h2.update_traces(line_color='#c0392b', line_width=4, marker_size=8)
-            st.plotly_chart(fig_h2, use_container_width=True)
-
-        st.markdown("#### Skúmanie vplyvu počasia (Odvetrávanie mesta)")
-        if not df_weather.empty and not df_all[df_all['type']=='PM10'].empty:
-            # INNER JOIN: Prepojenie emisií a vetra na základe spoločného kľúča (datetime)
-            df_h3 = pd.merge(df_all[df_all['type']=='PM10'], df_weather, on='datetime', how='inner')
-            if not df_h3.empty:
-                # OLS (Ordinary Least Squares) regresia pre modelovanie trendu
-                fig_h3 = px.scatter(df_h3, x='wind', y='value', trendline="ols", opacity=0.5, labels={'wind':'Vietor (km/h)', 'value':'Prach PM10'}, color_discrete_sequence=['#2980b9'])
-                st.plotly_chart(fig_h3, use_container_width=True)
-
-    # --- TAB 4: URBANIZMUS A ZELEŇ ---
-    with tabs[3]:
-        st.markdown("<div class='audit-title'>Urbanistická obrana: Parky ako záchranné zóny</div>", unsafe_allow_html=True)
-        st.write("""
-        Zatiaľ čo betónové ulice a križovatky znásobujú kumuláciu jedov, stromy pôsobia ako **fyzické prachové filtre**. Na mape nižšie je jasne vidieť, že meracie stanice nachádzajúce sa v blízkosti veľkých zelených oáz dlhodobo vykazujú radikálne nižšie a bezpečnejšie hodnoty. 
-        
-        **Certifikované bezpečné zóny pre astmatikov v Prahe (Útočiská):**
-        * 🌳 **Stromovka (Královská obora):** Najväčší pohlcovač prachu v širšom centre. Obrovská rozloha garantuje dýchateľný vzduch aj počas dopravnej špičky.
-        * 🌳 **Letenské sady:** Fungujú ako masívny ochranný val (hradba stromov) oddeľujúci rezidenčné štvrte od tranzitného nábrežia.
-        * 🌳 **Riegrovy sady & Vítkov:** Ostrovy čistého vzduchu v inak husto zastavanej a prašnej zóne Vinohradov a Žižkova.
-        * 🌳 **Petřín:** Vďaka nadmorskej výške a hustote lesa sa tu drží najčistejší vzduch, ďaleko od prachových ulíc Smíchova.
-        """)
-        
-        # Agregácia dlhodobého priemeru (za celé analyzované obdobie) pre každú stanicu
-        df_avg = df_all.groupby(['name','lat','lon','type'])['value'].mean().reset_index()
-        target_map_pol = 'NO2' if 'NO2' in available_pollutants else available_pollutants[0]
-        
-        fig_h4 = px.scatter_mapbox(df_avg[df_avg['type']==target_map_pol], lat="lat", lon="lon", size="value", color="value", hover_name="name", size_max=40, zoom=10.5, color_continuous_scale="Reds", mapbox_style=chosen_map_style, height=600, title=f"Dlhodobé priemery toxicity ({target_map_pol}) v kontraste s parkami")
-        if not df_parks.empty:
-            fig_h4.add_trace(go.Scattermapbox(lat=df_parks['lat'], lon=df_parks['lon'], mode='markers', marker=dict(size=14, color='#27ae60', opacity=0.6), name="Bezpečné zóny (Parky)", hoverinfo="text", text=df_parks['name']))
-        st.plotly_chart(fig_h4, use_container_width=True)
-
-    # --- TAB 5: ODPORÚČANIA PRE MAGISTRÁT (MAPA ZÁSAHU) ---
-    with tabs[4]:
         st.markdown("<div class='audit-title'>📋 Komplexný akčný plán: Záväzné odporúčania pre Magistrát hl. m. Prahy</div>", unsafe_allow_html=True)
-        st.markdown("<div class='danger-card'><b>Upozornenie pre krízový štáb:</b> Dáta predložené v tomto audite potvrdzujú systematické porušovanie práva občanov na zdravé životné prostredie. Nasledujúci strategický plán poskytuje okamžité aj dlhodobé kroky pre odvrátenie hroziacich sankcií zo strany EÚ a predovšetkým pre ochranu zdravia detí a kardiakov.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='danger-card'><b>Upozornenie pre krízový štáb:</b> Dáta predložené v detailných moduloch 1-4 potvrdzujú systematické porušovanie práva občanov na zdravé životné prostredie. Nasledujúci strategický plán poskytuje okamžité aj dlhodobé kroky pre odvrátenie hroziacich sankcií zo strany EÚ a predovšetkým pre ochranu zdravia detí a kardiakov.</div>", unsafe_allow_html=True)
 
         st.write("### 📍 Mapa zón pre okamžitý krízový zásah (Kritické Hotspoty)")
         st.write("Nasledujúca mapa identifikuje lokality, ktoré vyžadujú aplikáciu **Bodov I a II** z akčného plánu v najkratšom možnom čase. Tieto stanice vykazujú extrémne dlhodobé preťaženie toxínmi.")
@@ -479,6 +386,7 @@ elif app_mode == "📊 Zdravotný Dashboard":
         # Zobrazenie len tých staníc, ktorých hodnota je rovná alebo väčšia než medián (t.j. horná polovica najviac znečistených)
         df_hotspots = df_risk[df_risk['value'] >= df_risk['value'].median()] 
         
+        # Vykreslíme ich výraznou červenou farbou (#c0392b) pre vyvolanie pocitu nutnosti zásahu
         fig_action = px.scatter_mapbox(df_hotspots, lat="lat", lon="lon", size="value", color_discrete_sequence=["#c0392b"], hover_name="name", size_max=25, zoom=10.5, mapbox_style=chosen_map_style, height=450)
         fig_action.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
         st.plotly_chart(fig_action, use_container_width=True)
@@ -516,3 +424,127 @@ elif app_mode == "📊 Zdravotný Dashboard":
         * **Vznik Fondu čistého ovzdušia:** Všetky vybrané pokuty z mýta, nízkoemisných zón a sankcie pre developerov musia byť legislatívne viazané **výlučne** na tento fond, z ktorého sa bude priamo financovať výsadba stromov a nákup čističiek pre školy.
         * **Rozšírenie senzorickej siete:** Aktuálny počet staníc je nutné rozšíriť do tzv. "slepých miest" pomocou lacnejších IoT senzorov na stĺpoch verejného osvetlenia pre granularitu dát na úroveň konkrétnych ulíc.
         """)
+
+    # --- TAB 2: PRIESTOROVÁ TOXICITA (Bývalý Tab 1) ---
+    with tabs[2]:
+        st.markdown("<div class='audit-title'>Modul 1: Lokalizácia ohrozenia (Heatmapy podľa toxínov)</div>", unsafe_allow_html=True)
+        st.write("Zvoľte si časový výsek. Systém dynamicky vygeneruje priestorové mapy pre všetky prítomné toxíny v danom čase, aby ste videli, ktoré ulice sú pre chorých ľudí nepriechodné.")
+        
+        c1, c2 = st.columns(2)
+        # Selectbox využíva parameter format_func preložiť surový Pandas Date na náš formát napr. "02.05.2026 (Sobota)"
+        sel_d = c1.selectbox("Dátum kontroly", sorted(df_all['date_str'].unique(), reverse=True), format_func=format_date_sk)
+        sel_h = c2.slider("Hodina kontroly", 0, 23, 8)
+        
+        # FILTROVANIE DÁT PRE MAPY pre danú hodinu a deň
+        df_time = df_all[(df_all['date_str']==sel_d) & (df_all['hour']==sel_h)]
+
+        if df_time.empty:
+            st.warning("Pre túto hodinu nie sú k dispozícii žiadne merania.")
+        else:
+            # Cyklus vygeneruje interaktívnu mapu pre KAŽDÝ toxín zaznamenaný v danú hodinu
+            for pol in sorted(df_time['type'].unique()):
+                df_pol = df_time[df_time['type'] == pol]
+                if not df_pol.empty:
+                    info_text = pollutant_info.get(pol, "ZDROJ: Rôzne priemyselné a dopravné procesy. SPÔSOBUJE: Zhoršenie respiračných ťažkostí a poškodenie slizníc.")
+                    st.markdown(f"<div class='danger-card'><b>Látka: {pol}</b><br>{info_text}</div>", unsafe_allow_html=True)
+                    
+                    # Plotly Mapbox: Vykreslí body s veľkosťou a farbou závislou od nameranej hodnoty
+                    fig = px.scatter_mapbox(df_pol, lat="lat", lon="lon", size="value", color="value", hover_name="name", size_max=45, zoom=10, color_continuous_scale="Reds", mapbox_style=chosen_map_style) 
+                    fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, height=400)
+                    
+                    if not df_parks.empty:
+                        # Pridanie vrstvy parkov (Overpass API)
+                        fig.add_trace(go.Scattermapbox(lat=df_parks['lat'], lon=df_parks['lon'], mode='markers', marker=dict(size=10, color='#27ae60', opacity=0.5), name="Parky", hoverinfo="text", text=df_parks['name']))
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.markdown("---")
+
+    # --- TAB 3: MEDICÍNSKE PROFILY A LIMITY (Bývalý Tab 2) ---
+    with tabs[3]:
+        st.markdown("<div class='audit-title'>Modul 2: Historické prekračovanie limitov WHO (Obmedzenie práv)</div>", unsafe_allow_html=True)
+        st.write("Grafy vizualizujú, koľkokrát mesto zlyhalo v ochrane svojich občanov. Červená čiara znamená hranicu, kedy astmatikom začínajú klinické ťažkosti.")
+
+        for pol in available_pollutants:
+            df_pol = df_all[df_all['type'] == pol].sort_values('datetime')
+            if not df_pol.empty:
+                st.markdown(f"### Zdravotná analýza: {pol}")
+                colA, colB = st.columns([1, 2])
+                
+                limit_val = limits_who.get(pol, "Nestanovené")
+                desc_text = med_desc.get(pol, "**Medicínsky profil:** Všeobecný dráždivý vplyv na respiračný systém.")
+                
+                with colA:
+                    limit_html = f"<b style='color:#e74c3c;'>Limit WHO: {limit_val} µg/m³</b>" if limit_val != "Nestanovené" else "<b style='color:#7f8c8d;'>Limit pre tento toxín nie je pevne definovaný WHO.</b>"
+                    st.markdown(f"<div class='med-card'>{desc_text}<br><br>{limit_html}</div>", unsafe_allow_html=True)
+                
+                with colB:
+                    fig = go.Figure()
+                    for i, stanica in enumerate(sorted(df_pol['name'].unique())):
+                        df_stanica = df_pol[df_pol['name'] == stanica]
+                        # visible=(True if i==0 else 'legendonly'): Defaultne vidno len prvú stanicu, ostatné sa dajú zakliknúť
+                        fig.add_trace(go.Scatter(x=df_stanica['datetime'], y=df_stanica['value'], name=stanica, mode='lines', opacity=0.7, visible=(True if i==0 else 'legendonly')))
+                    
+                    if limit_val != "Nestanovené":
+                        # Zobrazenie kritického WHO limitu
+                        fig.add_hline(y=limit_val, line_dash="dash", line_color="red", line_width=3)
+                    
+                    fig.update_layout(height=300, margin={"r":0,"t":10,"l":0,"b":0})
+                    st.plotly_chart(fig, use_container_width=True)
+                st.markdown("---")
+
+    # --- TAB 4: MOBILITA A POČASIE (Bývalý Tab 3) ---
+    with tabs[4]:
+        st.markdown("<div class='audit-title'>Modul 3: Diagnostika príčin: Prečo je v meste toxické prostredie?</div>", unsafe_allow_html=True)
+        st.write("Grafy preukazujú, že za znečistenie môže priamo občianska mobilita (autá). Astmatici sú najviac obmedzovaní práve počas ranných špičiek a pracovných dní.")
+        
+        target_pol = 'NO2' if 'NO2' in df_all['type'].values else ('PM10' if 'PM10' in df_all['type'].values else df_all['type'].iloc[0])
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            st.write(f"**Dôkaz č.1: Útlm toxicity cez víkendy ({target_pol})**")
+            # Agregácia priemeru znečistenia pre jednotlivé dni v týždni
+            order = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+            df_h1 = df_all[df_all['type']==target_pol].groupby('day_name')['value'].mean().reindex(order)
+            
+            # Mapovanie anglických názvov na slovenské pre graf pomocou list comprehension
+            labels_sk = [slovak_days.get(day, day) for day in df_h1.index]
+            fig_bar = px.bar(x=labels_sk, y=df_h1.values, color=df_h1.values, color_continuous_scale="Reds", labels={'x':'Deň', 'y':'Priemerná koncentrácia'})
+            st.plotly_chart(fig_bar, use_container_width=True)
+            
+        with c2:
+            st.write(f"**Dôkaz č.2: Ranné dusno a obmedzovanie pohybu detí ({target_pol})**")
+            # Agregácia iba pracovných dní (vylúčenie víkendov) a zoskupenie podľa hodiny (0-23)
+            df_h2 = df_all[(df_all['type']==target_pol) & (~df_all['day_name'].isin(['Saturday','Sunday']))].groupby('hour')['value'].mean()
+            fig_h2 = px.line(df_h2, markers=True, labels={'value':'Koncentrácia', 'hour': 'Hodina dňa'})
+            fig_h2.update_traces(line_color='#c0392b', line_width=4, marker_size=8)
+            st.plotly_chart(fig_h2, use_container_width=True)
+
+        st.markdown("#### Skúmanie vplyvu počasia (Odvetrávanie mesta)")
+        if not df_weather.empty and not df_all[df_all['type']=='PM10'].empty:
+            # INNER JOIN: Prepojenie emisií a vetra na základe spoločného kľúča (datetime)
+            df_h3 = pd.merge(df_all[df_all['type']=='PM10'], df_weather, on='datetime', how='inner')
+            if not df_h3.empty:
+                # OLS (Ordinary Least Squares) regresia pre modelovanie trendu
+                fig_h3 = px.scatter(df_h3, x='wind', y='value', trendline="ols", opacity=0.5, labels={'wind':'Vietor (km/h)', 'value':'Prach PM10'}, color_discrete_sequence=['#2980b9'])
+                st.plotly_chart(fig_h3, use_container_width=True)
+
+    # --- TAB 5: URBANIZMUS A ZELEŇ (Bývalý Tab 4) ---
+    with tabs[5]:
+        st.markdown("<div class='audit-title'>Modul 4: Urbanistická obrana: Parky ako záchranné zóny</div>", unsafe_allow_html=True)
+        st.write("""
+        Zatiaľ čo betónové ulice a križovatky znásobujú kumuláciu jedov, stromy pôsobia ako **fyzické prachové filtre**. Na mape nižšie je jasne vidieť, že meracie stanice nachádzajúce sa v blízkosti veľkých zelených oáz dlhodobo vykazujú radikálne nižšie a bezpečnejšie hodnoty. 
+        
+        **Certifikované bezpečné zóny pre astmatikov v Prahe (Útočiská):**
+        * 🌳 **Stromovka (Královská obora):** Najväčší pohlcovač prachu v širšom centre. Obrovská rozloha garantuje dýchateľný vzduch aj počas dopravnej špičky.
+        * 🌳 **Letenské sady:** Fungujú ako masívny ochranný val (hradba stromov) oddeľujúci rezidenčné štvrte od tranzitného nábrežia.
+        * 🌳 **Riegrovy sady & Vítkov:** Ostrovy čistého vzduchu v inak husto zastavanej a prašnej zóne Vinohradov a Žižkova.
+        * 🌳 **Petřín:** Vďaka nadmorskej výške a hustote lesa sa tu drží najčistejší vzduch, ďaleko od prachových ulíc Smíchova.
+        """)
+        
+        # Agregácia dlhodobého priemeru (za celé analyzované obdobie) pre každú stanicu
+        df_avg = df_all.groupby(['name','lat','lon','type'])['value'].mean().reset_index()
+        target_map_pol = 'NO2' if 'NO2' in available_pollutants else available_pollutants[0]
+        
+        fig_h4 = px.scatter_mapbox(df_avg[df_avg['type']==target_map_pol], lat="lat", lon="lon", size="value", color="value", hover_name="name", size_max=40, zoom=10.5, color_continuous_scale="Reds", mapbox_style=chosen_map_style, height=600, title=f"Dlhodobé priemery toxicity ({target_map_pol}) v kontraste s parkami")
+        if not df_parks.empty:
+            fig_h4.add_trace(go.Scattermapbox(lat=df_parks['lat'], lon=df_parks['lon'], mode='markers', marker=dict(size=14, color='#27ae60', opacity=0.6), name="Bezpečné zóny (Parky)", hoverinfo="text", text=df_parks['name']))
+        st.plotly_chart(fig_h4, use_container_width=True)

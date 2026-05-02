@@ -32,11 +32,12 @@ Projekt spája dáta z 3 nezávislých zdrojov pomocou metódy *Inner Join* cez 
 
 **Pracovný postup čistenia (ETL):** Skript ošetruje chýbajúce hodnoty (`None`), odstraňuje anomálne záporné hodnoty senzorov, unifikuje názvoslovie analytov a extrahuje z ISO časových značiek nové premenné (`hour`, `day_name`) pre potreby agregácie.
 
-## 🔬 4. Formulované otázky a hypotézy
-1. **H1 (Víkendový útlm):** Existuje kauzalita medzi dňami pracovného pokoja a poklesom dopravných emisií? *(Očakávame víkendový útlm NO2).*
-2. **H2 (Dopravné špičky):** Majú denné emisie bimodálny charakter? *(Očakávame rannú a poobednú špičku počas pracovných dní).*
-3. **H3 (Disperzia vetrom):** Je rýchlosť prúdenia vzduchu inverzne korelovaná s hladinou pevných častíc? *(Očakávame, že silnejší vietor rapídne znižuje PM10).*
-4. **H4 (Vplyv zelene):** Pôsobí mestská zeleň ako izolačná bariéra proti znečisteniu? *(Očakávame nižšie dlhodobé koncentrácie v okolí parkov).*
+## 🔬 4. Skúmané oblasti a metodika
+Projekt opustil prístup statických "hypotéz" a využíva komplexné skúmanie problému od definície limitov až po riešenia:
+1. **Zdravotné mantinely:** Kvantifikácia hodín, počas ktorých boli prekročené limity WHO pre zraniteľné skupiny (astmatici).
+2. **Dopravná záťaž:** Identifikácia zdrojov smogu – analýza víkendového útlmu a ranných dopravných špičiek.
+3. **Počasie:** Modelovanie vplyvu sily vetra na disperziu (rozptyl) jemných prachových častíc.
+4. **Urbanizmus:** Geopriestorová analýza ochranného vplyvu mestskej zelene (parkov) voči znečisteniu z okolitých ulíc.
 
 ## 💡 5. Výsledky a závery
 Všetky 4 definované hypotézy boli na základe dolovania dát úspešne **verifikované**:

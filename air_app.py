@@ -346,18 +346,43 @@ elif app_mode == "📊 Zdravotný Dashboard":
     # --- TAB 0: HLAVNÝ PREHĽAD (EXECUTIVE SUMMARY) ---
     with tabs[0]:
         st.markdown("<div class='audit-title'>📊 Executive Summary: Manažérsky prehľad zistení</div>", unsafe_allow_html=True)
-        st.write("Táto sekcia prináša rýchly manažérsky súhrn výsledkov zo všetkých štyroch analytických modulov. Pre detailné skúmanie jednotlivých dôkazov prejdite do záložiek 1 až 4.")
+        
+        # --- NOVÉ: VÝPOČTY PRE KPI METRIKY (BIG NUMBERS) ---
+        target_pol = 'NO2' if 'NO2' in available_pollutants else available_pollutants[0]
+        
+        # Nájdenie stanice s najvyšším priemerným znečistením
+        worst_station = df_all[df_all['type'] == target_pol].groupby('name')['value'].mean().idxmax()
+        
+        # Nájdenie dňa s najvyšším znečistením a jeho formátovanie
+        worst_day_obj = df_all[df_all['type'] == target_pol].groupby('date_str')['value'].mean().idxmax()
+        worst_day = worst_day_obj.strftime('%d.%m.%Y') if hasattr(worst_day_obj, 'strftime') else str(worst_day_obj)
+        
+        # Vykreslenie 3 kľúčových metrík vedľa seba
+        k1, k2, k3 = st.columns(3)
+        k1.markdown(f"<div class='danger-card' style='text-align:center; padding: 15px;'><b>Celkové toxické hodiny</b><br><h2 style='color:#e74c3c; margin:0;'>{toxic_hours}</h2><span style='font-size:12px'>Prekročenie WHO limitov</span></div>", unsafe_allow_html=True)
+        k2.markdown(f"<div class='danger-card' style='text-align:center; padding: 15px;'><b>Najkritickejšia lokalita</b><br><h4 style='color:#e74c3c; margin:0; padding-top:6px;'>{worst_station}</h4><span style='font-size:12px'>Najvyššie priemerné zaťaženie</span></div>", unsafe_allow_html=True)
+        k3.markdown(f"<div class='danger-card' style='text-align:center; padding: 15px;'><b>Najhorší deň auditu</b><br><h2 style='color:#e74c3c; margin:0;'>{worst_day}</h2><span style='font-size:12px'>Maximum denných emisií</span></div>", unsafe_allow_html=True)
+
+        st.markdown("<hr style='margin-top: 5px; margin-bottom: 25px;'>", unsafe_allow_html=True)
 
         colA, colB = st.columns([1, 1])
         with colA:
-            # Textové zhrnutie pre rýchle čítanie vedením mesta
+            # --- NOVÉ: ZÁVEREČNÝ VERDIKT ---
+            st.markdown("""
+            <div class='audit-card' style='border-left: 5px solid #e74c3c; background-color: #fdf2e9;'>
+            <h4 style='color: #c0392b; margin-top: 0;'>⚖️ ZÁVEREČNÝ VERDIKT AUDITU: NEVYHOVUJÚCI</h4>
+            Na základe analyzovaných dát konštatujeme, že mesto Praha v súčasnosti <b>nedokáže garantovať bezpečné životné prostredie pre zraniteľné skupiny obyvateľstva</b>. Extrémne zaťaženie v ranných špičkách priamo obmedzuje občianske práva astmatikov a detí. Stav si vyžaduje okamžitú krízovú intervenciu podľa priloženého Akčného plánu.
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Pôvodné zhrnutie 1-4
             st.markdown("""
             <div class='audit-card'>
             <b>Zhrnutie diagnostiky auditu:</b><br><br>
-            <b>🌍 1. Lokalizácia (Kde je problém?):</b> Centrum Prahy vykazuje extrémne zaťaženie. Koncentrácie toxínov bežne presahujú bezpečné hodnoty v oblastiach hlavných dopravných ťahov.<br><br>
-            <b>🏥 2. Zdravotné zlyhanie (Aké sú limity?):</b> Mesto opakovane a systematicky porušuje limity Svetovej zdravotníckej organizácie (WHO) pre NO2 a PM10, čím priamo obmedzuje voľný pohyb astmatikov a kardiakov.<br><br>
-            <b>🚗🌬️ 3. Príčiny (Kto za to môže?):</b> Hlavným vinníkom je ranná automobilová doprava počas pracovných dní. Situáciu následne kriticky zhoršuje meteorologické bezvetrie (vietor pod 5 km/h), kedy mesto stráca schopnosť sa odvetrať.<br><br>
-            <b>🌲 4. Riešenie (Čo nás chráni?):</b> Analýza potvrdila, že mestské parky (Stromovka, Letná) preukázateľne zachytávajú smog a fungujú ako jediné "bezpečné oázy" v centre mesta.
+            <b>🌍 1. Lokalizácia (Kde je problém?):</b> Centrum vykazuje extrémne zaťaženie v oblastiach dopravných ťahov.<br><br>
+            <b>🏥 2. Zdravotné zlyhanie (Aké sú limity?):</b> Mesto opakovane systematicky porušuje prísne limity WHO.<br><br>
+            <b>🚗🌬️ 3. Príčiny (Kto za to môže?):</b> Vinníkom je ranná doprava, situáciu kriticky zhoršuje bezvetrie.<br><br>
+            <b>🌲 4. Riešenie (Čo nás chráni?):</b> Mestské parky (Stromovka, Letná) fungujú ako jediné "bezpečné oázy".
             </div>
             """, unsafe_allow_html=True)
 
@@ -369,7 +394,7 @@ elif app_mode == "📊 Zdravotný Dashboard":
             if not df_trend.empty:
                 # Vykreslenie prehľadného čiarového grafu s trendom
                 fig_summary = px.line(df_trend, x='date_str', y='value', color='type', markers=True, labels={'date_str': 'Dátum', 'value': 'Priemerná koncentrácia (µg/m³)', 'type': 'Látka'}, color_discrete_sequence=['#c0392b', '#2980b9'])
-                fig_summary.update_layout(height=350, margin={"r":0,"t":10,"l":0,"b":0})
+                fig_summary.update_layout(height=450, margin={"r":0,"t":10,"l":0,"b":0}) # Zväčšená výška, aby to vizuálne sedelo so stĺpcom A
                 st.plotly_chart(fig_summary, use_container_width=True)
 
     # --- TAB 1: ODPORÚČANIA PRE MAGISTRÁT (MAPA ZÁSAHU) ---

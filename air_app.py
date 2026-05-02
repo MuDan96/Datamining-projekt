@@ -425,15 +425,37 @@ elif app_mode == "📊 Zdravotný Dashboard":
             """, unsafe_allow_html=True)
 
         with colB:
-            st.write("**Celkový trend preťaženia v sledovanom období:**")
-            st.write("*Graf zobrazuje dennú priemernú koncentráciu hlavných látok (NO2 a PM10) vypočítanú zo všetkých mestských senzorov.*")
-            # AGREGÁCIA PRE HLAVNÝ GRAF
-            df_trend = df_all[df_all['type'].isin(['NO2', 'PM10'])].groupby(['date_str', 'type'])['value'].mean().reset_index()
-            if not df_trend.empty:
-                fig_summary = px.line(df_trend, x='date_str', y='value', color='type', markers=True, labels={'date_str': 'Dátum', 'value': 'Priemerná koncentrácia (µg/m³)', 'type': 'Látka'}, color_discrete_sequence=['#c0392b', '#2980b9'])
-                fig_summary.update_layout(height=450, margin={"r":0,"t":10,"l":0,"b":0})
-                st.plotly_chart(fig_summary, use_container_width=True)
-                
+            st.write("**Kedy sa v Prahe nedá dýchať? (Tepelná mapa rizika):**")
+            st.write(f"*Tmavá červená farba indikuje kritické hodnoty {target_pol}. Jasne tu vidieť vplyv ranných dopravných špičiek počas pracovného týždňa.*")
+            
+            # AGREGÁCIA PRE HEATMAPU: Zoskupíme dáta podľa dňa v týždni a hodiny
+            df_heatmap = df_all[df_all['type'] == target_pol].groupby(['day_name', 'hour'])['value'].mean().reset_index()
+            
+            # Preklad anglických dní na slovenské a nastavenie ich poradia
+            df_heatmap['Deň'] = df_heatmap['day_name'].map(slovak_days)
+            # Dáme ich v opačnom poradí, pretože Plotly vykresľuje Y os zdola nahor (chceme Pondelok úplne hore)
+            order_sk = ['Nedeľa', 'Sobota', 'Piatok', 'Štvrtok', 'Streda', 'Utorok', 'Pondelok']
+            
+            # Vykreslenie 2D Histogramu (Heatmapy)
+            fig_summary = px.density_heatmap(
+                df_heatmap, 
+                x="hour", 
+                y="Deň", 
+                z="value", 
+                histfunc="avg", # Spriemeruje hodnoty pre danú hodinu a deň
+                color_continuous_scale="Reds", # Červená farebná škála pre indikáciu nebezpečenstva
+                labels={'hour': 'Hodina dňa (0-23)', 'Deň': '', 'value': f'{target_pol} (µg/m³)'},
+                category_orders={"Deň": order_sk}
+            )
+            
+            # Kozmetické úpravy grafu (aby boli pekne vypísané všetky párne hodiny na osi X)
+            fig_summary.update_layout(
+                height=450, 
+                margin={"r":0,"t":10,"l":0,"b":0},
+                xaxis=dict(tickmode='linear', tick0=0, dtick=2)
+            )
+            st.plotly_chart(fig_summary, use_container_width=True)
+
     # --- TAB 1: ODPORÚČANIA PRE MAGISTRÁT (MAPA ZÁSAHU) ---
     with tabs[1]:
         st.markdown("<div class='audit-title'>📋 Komplexný akčný plán: Záväzné odporúčania pre Magistrát hl. m. Prahy</div>", unsafe_allow_html=True)

@@ -105,7 +105,7 @@ def load_golemio_data(start_date, end_date):
                 for comp in (meas_data.get('components', []) if isinstance(meas_data, dict) else []):
                     if not isinstance(comp, dict): continue
                     val = comp.get('averaged_time', {}).get('value') if isinstance(comp.get('averaged_time'), dict) else comp.get('value')
-                    type_str = comp.get('type', 'Unknown').replace('.', '_') # PM2.5 -> PM2_5
+                    type_str = comp.get('type', 'Unknown').replace('.', '_')
                     if val is not None and val >= 0:
                         enriched_data.append({
                             'name': stations_dict[s_id]['name'], 'lat': stations_dict[s_id]['lat'], 'lon': stations_dict[s_id]['lon'],
@@ -153,7 +153,6 @@ date_range = st.sidebar.date_input("Rozsah auditu", value=(datetime.now().date()
 if len(date_range) != 2: st.stop()
 start_d, end_d = date_range
 
-# ZMENA: OSM nastavené ako prvé (default)
 map_styles = {"Detailná (OSM)": "open-street-map", "Svetlá čistá (Carto)": "carto-positron", "Tmavá (Odporúčaná pre heatmaps)": "carto-darkmatter"}
 chosen_map_style = map_styles[st.sidebar.selectbox("Mapový podklad", list(map_styles.keys()))]
 
@@ -169,10 +168,7 @@ df_all['date_str'] = df_all['datetime'].dt.date
 df_weather = load_weather((end_d - start_d).days + 2)
 df_parks = load_parks()
 
-# Získanie dynamického zoznamu všetkých dostupných látok
 available_pollutants = sorted(df_all['type'].unique())
-
-# Výpočet toxických hodín (OHROZENIE ZDRAVIA) pre základné limity
 toxic_hours = len(df_all[((df_all['type'] == 'NO2') & (df_all['value'] > 25)) | ((df_all['type'] == 'PM10') & (df_all['value'] > 45)) | ((df_all['type'] == 'PM2_5') & (df_all['value'] > 15))])
 
 st.sidebar.markdown("## 📈 Miera ohrozenia")
@@ -213,16 +209,14 @@ med_desc = {
     "NOx": "**Medicínsky profil (Oxidy dusíka):** Indikátor celkového masívneho zamorenia z áut. Spôsobujú hyperreaktivitu priedušiek a zvyšujú náchylnosť k vírusovým infekciám."
 }
 
-
 # ============================================
 # REŽIM 1: DOKUMENTÁCIA
 # ============================================
 if app_mode == "📄 Metodika a Dokumentácia":
     st.title("📄 Dokumentácia: Zdravotný a Urbanistický audit")
-    st.write("Tento dokument definuje medicínske a dátové východiská, z ktorých tento audit vychádza.")
     
     with st.expander("1. Občianske práva a Medicínsky kontext (Prečo tento audit vznikol)", expanded=True):
-        st.write("""Mesto Praha čelí skrytej kríze verejného zdravia. Zatiaľ čo zdravý jedinec vníma smog len ako "zápach", pre obyvateľov s astmou, CHOCHP, či pre kardiakov predstavujú tieto hodnoty priame ohrozenie života a obmedzenie ich práva na voľný pohyb po meste. Vedecké štúdie z UK a Karlovej Univerzity preukazujú, že pľúca dlhoročných Pražanov z centra vykazujú poškodenia zrovnateľné s ľahkými fajčiarmi. Tento projekt prestáva na ovzdušie nazerať ako na environmentálny problém a preklápa ho do problematiky základných ľudských a zdravotných práv.""")
+        st.write("""Mesto Praha čelí skrytej kríze verejného zdravia. Zatiaľ čo zdravý jedinec vníma smog len ako "zápach", pre obyvateľov s astmou, CHOCHP, či pre kardiakov predstavujú tieto hodnoty priame ohrozenie života a obmedzenie ich práva na voľný pohyb po meste. Tento projekt prestáva na ovzdušie nazerať ako na environmentálny problém a preklápa ho do problematiky základných ľudských a zdravotných práv.""")
 
     with st.expander("2. Metodika a Spracovanie dát"):
         st.write("Dáta sú sťahované v reálnom čase z vládneho Golemio API a fúzované s meteorologickým modelom Open-Meteo. Hodnoty nie sú posudzované voči benevolentným národným normám, ale voči prísnym kritériám Svetovej zdravotníckej organizácie (WHO) pre citlivé skupiny.")
@@ -234,9 +228,9 @@ elif app_mode == "📊 Zdravotný Dashboard":
     st.title("⚖️ Zdravotný Audit Ovzdušia: Mesto Praha")
     st.markdown("Ochrana občianskych práv a verejného zdravia prostredníctvom dátovo podložených regulácií dopravy a urbanizmu.")
 
-    tabs = st.tabs(["🌍 1. Priestorová toxicita (Mapy)", "🏥 2. Medicínske profily toxínov", "🚗🌬️ 3. Skúmanie Mobility a Počasia", "🌲 4. Urbanizmus a Zeleň", "📋 5. Opatrenia pre Magistrát"])
+    tabs = st.tabs(["🌍 1. Priestorová toxicita", "🏥 2. Medicínske profily", "🚗🌬️ 3. Mobilita a Počasie", "🌲 4. Urbanizmus a Zeleň", "📋 5. Opatrenia pre Magistrát"])
 
-    # --- TAB 1: PRIESTOROVÁ TOXICITA (MAPY POD SEBOU) ---
+    # --- TAB 1: PRIESTOROVÁ TOXICITA ---
     with tabs[0]:
         st.markdown("<div class='audit-title'>Lokalizácia ohrozenia (Heatmapy podľa toxínov)</div>", unsafe_allow_html=True)
         st.write("Zvoľte si časový výsek. Systém vygeneruje priestorové mapy pre všetky prítomné toxíny v danom čase, aby ste videli, ktoré ulice sú pre chorých ľudí nepriechodné.")
@@ -262,10 +256,10 @@ elif app_mode == "📊 Zdravotný Dashboard":
                     st.plotly_chart(fig, use_container_width=True)
                     st.markdown("---")
 
-    # --- TAB 2: MEDICÍNSKE PROFILY A LIMITY ---
+    # --- TAB 2: MEDICÍNSKE PROFILY ---
     with tabs[1]:
         st.markdown("<div class='audit-title'>Historické prekračovanie limitov WHO (Obmedzenie práv)</div>", unsafe_allow_html=True)
-        st.write("Nasledujúce grafy vizualizujú, koľkokrát mesto zlyhalo v ochrane svojich občanov pred zachytenými toxínmi. Červená čiara znamená hranicu, kedy astmatikom začínajú klinické ťažkosti.")
+        st.write("Grafy vizualizujú, koľkokrát mesto zlyhalo v ochrane svojich občanov. Červená čiara znamená hranicu, kedy astmatikom začínajú klinické ťažkosti.")
 
         for pol in available_pollutants:
             df_pol = df_all[df_all['type'] == pol].sort_values('datetime')
@@ -274,7 +268,7 @@ elif app_mode == "📊 Zdravotný Dashboard":
                 colA, colB = st.columns([1, 2])
                 
                 limit_val = limits_who.get(pol, "Nestanovené")
-                desc_text = med_desc.get(pol, "**Medicínsky profil:** Všeobecný dráždivý vplyv na respiračný systém. Prekračovanie hodnôt si vyžaduje pozornosť a monitoring.")
+                desc_text = med_desc.get(pol, "**Medicínsky profil:** Všeobecný dráždivý vplyv na respiračný systém.")
                 
                 with colA:
                     limit_html = f"<b style='color:#e74c3c;'>Limit WHO: {limit_val} µg/m³</b>" if limit_val != "Nestanovené" else "<b style='color:#7f8c8d;'>Limit pre tento toxín nie je pevne definovaný WHO.</b>"
@@ -295,11 +289,8 @@ elif app_mode == "📊 Zdravotný Dashboard":
     # --- TAB 3: MOBILITA A POČASIE ---
     with tabs[2]:
         st.markdown("<div class='audit-title'>Diagnostika príčin: Prečo je v meste toxické prostredie?</div>", unsafe_allow_html=True)
+        st.write("Grafy preukazujú, že za znečistenie môže priamo občianska mobilita (autá). Astmatici sú najviac obmedzovaní práve počas ranných špičiek a pracovných dní.")
         
-        st.markdown("#### A. Skúmanie dopravy a mobility")
-        st.write("Grafy preukazujú, že za znečistenie môže priamo občianska mobilita (autá). Astmatici sú najviac obmedzovaní práve počas ranných špičiek a pracovných dní. Víkendový pokles dokazuje, že mesto má potenciál byť čisté, ak sa obmedzí doprava.")
-        
-        # Filtrujeme NO2 ak je v datach, inak PM10
         target_pol = 'NO2' if 'NO2' in df_all['type'].values else ('PM10' if 'PM10' in df_all['type'].values else df_all['type'].iloc[0])
         
         c1, c2 = st.columns(2)
@@ -315,8 +306,7 @@ elif app_mode == "📊 Zdravotný Dashboard":
             fig_h2.update_traces(line_color='#c0392b', line_width=4, marker_size=8)
             st.plotly_chart(fig_h2, use_container_width=True)
 
-        st.markdown("#### B. Skúmanie vplyvu počasia (Odvetrávanie mesta)")
-        st.write("Meteorologická disperzia. Prach z dopravy sa hromadí a vytvára toxickú deku. Zistili sme, že pokiaľ rýchlosť vetra klesne pod 5-10 km/h, mesto stráca schopnosť sa odvetrať a hodnoty letia hore.")
+        st.markdown("#### Skúmanie vplyvu počasia (Odvetrávanie mesta)")
         if not df_weather.empty and not df_all[df_all['type']=='PM10'].empty:
             df_h3 = pd.merge(df_all[df_all['type']=='PM10'], df_weather, on='datetime', how='inner')
             if not df_h3.empty:
@@ -327,13 +317,11 @@ elif app_mode == "📊 Zdravotný Dashboard":
     with tabs[3]:
         st.markdown("<div class='audit-title'>Urbanistická obrana: Parky ako záchranné zóny</div>", unsafe_allow_html=True)
         st.write("""
-        Zatiaľ čo betónové ulice a križovatky znásobujú kumuláciu jedov, stromy pôsobia ako **fyzické prachové filtre**. Listová plocha zachytáva aerosóly a zároveň ochladzuje okolie, čím zabraňuje vzniku prízemnej ozónovej vrstvy (letného smogu). 
-        
-        Na mape nižšie je jasne vidieť, že meracie stanice nachádzajúce sa v blízkosti **veľkých zelených oáz** dlhodobo vykazujú radikálne nižšie a bezpečnejšie hodnoty. 
+        Zatiaľ čo betónové ulice a križovatky znásobujú kumuláciu jedov, stromy pôsobia ako **fyzické prachové filtre**. Na mape nižšie je jasne vidieť, že meracie stanice nachádzajúce sa v blízkosti veľkých zelených oáz dlhodobo vykazujú radikálne nižšie a bezpečnejšie hodnoty. 
         
         **Certifikované bezpečné zóny pre astmatikov v Prahe (Útočiská):**
-        * 🌳 **Stromovka (Královská obora):** Najväčší pohlcovač prachu v širšom centre. Obrovská rozloha garantuje čistý vzduch aj počas dopravnej špičky.
-        * 🌳 **Letenské sady:** Fungujú ako ochranný val (hradba stromov) oddeľujúci rezidenčné štvrte od tranzitného nábrežia.
+        * 🌳 **Stromovka (Královská obora):** Najväčší pohlcovač prachu v širšom centre. Obrovská rozloha garantuje dýchateľný vzduch aj počas dopravnej špičky.
+        * 🌳 **Letenské sady:** Fungujú ako masívny ochranný val (hradba stromov) oddeľujúci rezidenčné štvrte od tranzitného nábrežia.
         * 🌳 **Riegrovy sady & Vítkov:** Ostrovy čistého vzduchu v inak husto zastavanej a prašnej zóne Vinohradov a Žižkova.
         * 🌳 **Petřín:** Vďaka nadmorskej výške a hustote lesa sa tu drží najčistejší vzduch, ďaleko od prachových ulíc Smíchova.
         """)
@@ -346,37 +334,52 @@ elif app_mode == "📊 Zdravotný Dashboard":
             fig_h4.add_trace(go.Scattermapbox(lat=df_parks['lat'], lon=df_parks['lon'], mode='markers', marker=dict(size=14, color='#27ae60', opacity=0.6), name="Bezpečné zóny (Parky)", hoverinfo="text", text=df_parks['name']))
         st.plotly_chart(fig_h4, use_container_width=True)
 
-    # --- TAB 5: ODPORÚČANIA PRE MAGISTRÁT (MAPA ZÁSAHU) ---
+    # --- TAB 5: ODPORÚČANIA PRE MAGISTRÁT ---
     with tabs[4]:
-        st.markdown("<div class='audit-title'>📋 Akčný plán: Odporúčania pre Magistrát hl. m. Prahy</div>", unsafe_allow_html=True)
-        st.write("Tento audit poskytuje nevyvrátiteľné dôkazy o tom, že zlá organizácia dopravy a zástavby priamo poškodzuje verejné zdravie. Navrhujeme prijať tieto okamžité kroky pre nápravu:")
+        st.markdown("<div class='audit-title'>📋 Komplexný akčný plán: Záväzné odporúčania pre Magistrát hl. m. Prahy</div>", unsafe_allow_html=True)
+        st.markdown("<div class='danger-card'><b>Upozornenie pre krízový štáb:</b> Dáta predložené v tomto audite potvrdzujú systematické porušovanie práva občanov na zdravé životné prostredie. Nasledujúci strategický plán poskytuje okamžité aj dlhodobé kroky pre odvrátenie hroziacich sankcií zo strany EÚ a predovšetkým pre ochranu zdravia detí a kardiakov.</div>", unsafe_allow_html=True)
 
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            st.markdown("""
-            ### 🚨 1. Útlm dopravy v kritických hodinách
-            Dáta ukazujú toxický vrchol medzi 7:00 a 9:00. Toto je čas, kedy astmatici trpia najviac.
-            * **Zavedenie Školských ulíc:** Zákaz vjazdu vozidiel k ZŠ v ranných hodinách.
-            * **Dynamické mýto:** Spoplatnenie vjazdu do centra v špičke pre nerezidentov (cieľ: znížiť počet áut o min. 20%).
-            
-            ### 🌳 2. Absolútna ochrana "Zelených oáz"
-            Náš výskum dokázal, že parky (Stromovka, Letná) sú jediné miesta s dýchateľným vzduchom.
-            * **Stavebná uzávera:** Okamžitý zákaz akéhokoľvek zahusťovania výstavby na úkor mestskej zelene.
-            * **Zelené izolačné steny:** Začať s masívnou výsadbou listnatých stromov priamo pozdĺž severojužnej magistrály na zachytávanie prachu (PM10).
-            
-            ### ⚕️ 3. Krízový zdravotný systém
-            * Pokiaľ meteorologické modely hlásia **vietor pod 5 km/h** na nasledujúce 2 dni, magistrát automaticky rozpošle SMS varovanie registrovaným kardiakom a astmatikom, a zavedie dočasné zlacnenie MHD pre zníženie emisií z áut.
-            """)
+        st.write("### 📍 Mapa zón pre okamžitý krízový zásah (Kritické Hotspoty)")
+        st.write("Nasledujúca mapa identifikuje lokality, ktoré vyžadujú aplikáciu **Bodov I a II** z akčného plánu v najkratšom možnom čase. Tieto stanice vykazujú extrémne dlhodobé preťaženie toxínmi.")
         
-        with col2:
-            st.write("**📍 Mapa Zón pre Okamžitý Zásah (Hotspots)**")
-            st.write("*Tieto stanice vykazujú najhoršie dlhodobé priemerné preťaženie a musia byť riešené ako prvé.*")
-            
-            # Filter najhorších staníc - použijeme zvolený mapový štýl (chosen_map_style)
-            pol_hotspot = 'NO2' if 'NO2' in df_all['type'].values else df_all['type'].iloc[0]
-            df_risk = df_all[df_all['type'] == pol_hotspot].groupby(['name', 'lat', 'lon'])['value'].mean().reset_index()
-            df_hotspots = df_risk[df_risk['value'] >= df_risk['value'].median()] # Horná polovica najhorších
-            
-            fig_action = px.scatter_mapbox(df_hotspots, lat="lat", lon="lon", size="value", color_discrete_sequence=["#c0392b"], hover_name="name", size_max=25, zoom=10, mapbox_style=chosen_map_style, height=500)
-            fig_action.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
-            st.plotly_chart(fig_action, use_container_width=True)
+        pol_hotspot = 'NO2' if 'NO2' in df_all['type'].values else df_all['type'].iloc[0]
+        df_risk = df_all[df_all['type'] == pol_hotspot].groupby(['name', 'lat', 'lon'])['value'].mean().reset_index()
+        df_hotspots = df_risk[df_risk['value'] >= df_risk['value'].median()] 
+        
+        fig_action = px.scatter_mapbox(df_hotspots, lat="lat", lon="lon", size="value", color_discrete_sequence=["#c0392b"], hover_name="name", size_max=25, zoom=10.5, mapbox_style=chosen_map_style, height=450)
+        fig_action.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+        st.plotly_chart(fig_action, use_container_width=True)
+
+        st.markdown("---")
+        st.markdown("### 🏛️ Strategické piliere nápravných opatrení")
+        
+        st.markdown("#### 🚨 PILIER I: Radikálna reorganizácia mestskej mobility (Okamžitý dopad)")
+        st.markdown("""
+        Doprava je primárnym vektorom ranných toxických špičiek. Magistrát musí prejsť od pasívneho monitoringu k aktívnej reštrikcii:
+        * **Implementácia 'Školských ochranných zón' (School Streets):** Úplné vylúčenie individuálnej automobilovej dopravy v okruhu 200 metrov od základných a materských škôl v čase od 7:00 do 8:30. Deti majú pľúca vo výške výfukov a absorbujú až o 30% viac emisií ako dospelí.
+        * **Dynamické mýto a Nízkoemisné zóny (LEZ):** Zavedenie poplatku za vjazd do širšieho centra Prahy, ktorý bude **dynamicky rásť** v závislosti od aktuálnych dát z Golemio API. V dňoch so zlou rozptylovou situáciou (vietor < 5 km/h) sa poplatok automaticky strojnásobí.
+        * **Záchytné parkoviská (P+R) napojené na environmentálne dáta:** Parkovné na okrajoch mesta musí počas smogových dní automaticky zahŕňať bezplatný lístok na MHD.
+        * **Elektrifikácia mestskej logistiky:** Stanovenie prísneho harmonogramu, podľa ktorého bude od roku 2028 zásobovanie v centre Prahy povolené výhradne pre bezemisné vozidlá.
+        """)
+
+        st.markdown("#### 🌳 PILIER II: Územné plánovanie a zelená defenzíva (Strednodobý dopad)")
+        st.markdown("""
+        Mestská zeleň nie je len vizuálny doplnok, ale **kritická zdravotnícka infraštruktúra**.
+        * **Striktná stavebná uzávera:** Absolútny zákaz transformácie akejkoľvek aktuálnej mestskej zelene (nad 500 m²) na komerčnú zástavbu. Parky fungujú ako záchranné plúca mesta; ich zahustenie by malo fatálne následky.
+        * **Zelené izolačné bariéry pozdĺž radiál:** Okamžité vyčlenenie rozpočtu na výsadbu radov listnatých stromov (s vysokým indexom zachytávania prachu, napr. platany, jasene) pozdĺž Severojužnej magistrály.
+        * **Povinné zelené strechy a fasády:** Zmena stavebného zákona, ktorá podmieni vydanie stavebného povolenia pre nové komerčné objekty v centre implementáciou certifikovanej zelenej fasády schopnej pohlcovať PM10 častice.
+        """)
+
+        st.markdown("#### ⚕️ PILIER III: Krízový manažment a ochrana verejného zdravia (Preventívny dopad)")
+        st.markdown("""
+        Mesto musí proaktívne chrániť svojich obyvateľov pred neviditeľnou hrozbou smogu:
+        * **Napojenie zdravotných poisťovní na Golemio API:** Vytvorenie automatizovaného varovného SMS/Push systému. Ak predikčné modely indikujú inverziu a bezvetrie na nasledujúcich 48 hodín, registrovaní astmatici a kardiaci dostanú okamžité varovanie s odporúčaním obmedziť pohyb vonku.
+        * **Dotácie na vnútorné čističky vzduchu:** Zriadenie fondu Magistrátu pre štátne materské školy a zariadenia pre seniorov na nákup a údržbu vysokoúčinných HEPA čističiek vzduchu.
+        * **Úprava cenníka MHD v kríze:** Počas "Toxických hodín" zavedenie bezplatnej mestskej hromadnej dopravy pre všetkých občanov s cieľom maximálne znížiť podiel individuálnej automobilovej dopravy v daný deň.
+        """)
+
+        st.markdown("#### 💰 PILIER IV: Financovanie a transparentnosť")
+        st.markdown("""
+        * **Vznik Fondu čistého ovzdušia:** Všetky vybrané pokuty z mýta, nízkoemisných zón a sankcie pre developerov musia byť legislatívne viazané **výlučne** na tento fond, z ktorého sa bude priamo financovať výsadba stromov a nákup čističiek pre školy.
+        * **Rozšírenie senzorickej siete:** Aktuálny počet staníc je nutné rozšíriť do tzv. "slepých miest" pomocou lacnejších IoT senzorov na stĺpoch verejného osvetlenia pre granularitu dát na úroveň konkrétnych ulíc.
+        """)

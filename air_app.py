@@ -210,16 +210,68 @@ med_desc = {
 }
 
 # ============================================
-# REŽIM 1: DOKUMENTÁCIA
+# REŽIM 1: DOKUMENTÁCIA (ZADANIE PROJEKTU)
 # ============================================
 if app_mode == "📄 Metodika a Dokumentácia":
     st.title("📄 Dokumentácia: Zdravotný a Urbanistický audit")
+    st.write("Tento dokument pokrýva všetky povinné náležitosti projektového zadania a definuje medicínske a dátové východiská, z ktorých tento audit vychádza.")
     
-    with st.expander("1. Občianske práva a Medicínsky kontext (Prečo tento audit vznikol)", expanded=True):
-        st.write("""Mesto Praha čelí skrytej kríze verejného zdravia. Zatiaľ čo zdravý jedinec vníma smog len ako "zápach", pre obyvateľov s astmou, CHOCHP, či pre kardiakov predstavujú tieto hodnoty priame ohrozenie života a obmedzenie ich práva na voľný pohyb po meste. Tento projekt prestáva na ovzdušie nazerať ako na environmentálny problém a preklápa ho do problematiky základných ľudských a zdravotných práv.""")
+    with st.expander("1. Manažerské shrnutí (Executive Summary)", expanded=True):
+        st.write("""
+        Náš projekt predstavuje plne automatizovaný nástroj pre krízový manažment a urbanistické plánovanie mesta Prahy. 
+        Odklonili sme sa od čisto environmentálneho pohľadu a preklopili sme projekt do roviny **ochrany občianskych práv a verejného zdravia**. 
+        Nástroj historicky vyhodnocuje dáta z vládneho Golemio API, prepája ich s mestskou infraštruktúrou (parky) a meteorológiou. 
+        Výstupom sú exaktné dôkazy o tom, kedy sú obyvatelia obmedzovaní vo svojom pohybe kvôli toxicite (astmatici, deti) a poskytuje priame argumenty na zavádzanie tvrdých regulácií.
+        """)
 
-    with st.expander("2. Metodika a Spracovanie dát"):
-        st.write("Dáta sú sťahované v reálnom čase z vládneho Golemio API a fúzované s meteorologickým modelom Open-Meteo. Hodnoty nie sú posudzované voči benevolentným národným normám, ale voči prísnym kritériám Svetovej zdravotníckej organizácie (WHO) pre citlivé skupiny.")
+    with st.expander("2. Definice problému z pohledu firmy (Magistrátu) a byznysový přínos"):
+        st.write("""
+        * **Definícia problému:** Mesto Praha čelí skrytej kríze verejného zdravia. Zatiaľ čo zdravý jedinec vníma smog len ako "zápach", pre zraniteľné skupiny obyvateľstva (astmatici, CHOCHP, kardiaci) predstavujú tieto hodnoty priame ohrozenie života a obmedzenie práva na voľný pohyb. Vedecké štúdie preukazujú, že pľúca Pražanov z centra vykazujú poškodenia zrovnateľné s ľahkými fajčiarmi v porovnaní s obyvateľmi vidieka. Magistrátu doteraz chýbal nástroj, ktorý by exaktne identifikoval zdroje (autá vs. počasie) a priamo obhajoval investície do obranných mechanizmov (zeleň).
+        * **Byznysový a politický prínos:**
+            1. **Riadenie dopravy:** Poskytnutie exaktných dát (identifikácia ranných špičiek) na bezprecedentné zavedenie dynamického mýta a zákazov vjazdu k základným školám.
+            2. **Real Estate a Ochrana zelene:** Dodanie vedeckých dôkazov o tom, že mestské parky fungujú ako fyzické filtre (bezpečné oázy), čím sa zabezpečí ich nedotknuteľnosť voči developerskej výstavbe.
+            3. **Zdravotná prevencia:** Vytvorenie metodiky na výpočet "Toxických hodín", čo umožňuje včasné SMS varovanie pre obyvateľstvo a alokáciu zdrojov do zdravotníctva.
+        """)
+
+    with st.expander("3. Popis vstupních dat a struktura auditu"):
+        st.write("""
+        * **Data Fusion (Fúzia 3 nezávislých API):**
+            * *Golemio API (v2):* Zber hodinových koncentrácií a dynamická kategorizácia všetkých dostupných toxínov z oficiálnych IoT senzorov ČHMÚ.
+            * *Open-Meteo API:* Modelovanie prúdenia vzduchu priradené k časovým značkám senzorov.
+            * *Overpass API (OSM):* Extrakcia priestorových polygónov najväčších parkov.
+        * **Štruktúra skúmania v aplikácii:**
+            1. *Priestorová toxicita:* Kde presne v meste hrozí v daný čas nebezpečenstvo?
+            2. *Zdravotné limity:* Koľko hodín mesto zlyháva v ochrane obyvateľov podľa prísnych limitov Svetovej zdravotníckej organizácie (WHO)?
+            3. *Mobilita a počasie:* Je na vine príroda (bezvetrie) alebo ľudia (ranná špička áut)?
+            4. *Urbanizmus:* Môžu stromy zachrániť situáciu?
+        """)
+
+    with st.expander("4. Volba metody, argumentace a pracovní postup"):
+        st.write("""
+        Naším zámerom nebolo vytvoriť statický vedecký report, ale nasaditeľný "Policy Dashboard" pre Magistrát. 
+        Z tohto dôvodu sme sa odklonili od tradičného jazyka R (vrátane Rmd súborov) a postavili sme projekt na modernom technologickom stacku **Python + Streamlit framework**.
+        * **Argumentácia:** Tento prístup je súčasným priemyselným štandardom pre vývoj dátových produktov v cloude (Data Apps). Umožňuje bezproblémové napojenie na živé REST API rozhrania a interaktívnu, okamžitú odozvu vo vektorových mapách.
+        * **Pracovný postup (Data Engineering):** Náš skript zabezpečuje iteratívny zber JSON payloadov s implementáciou 'Retry' adaptérov proti výpadkom siete. Transformácia zahŕňa dynamické parsovanie vnorených komponentov senzorov, konverziu ISO časov na analytické premenné (hodiny, dni), Data Cleansing (ignorovanie anomálnych záporných hodnôt a `None`) a plnú horizontálnu fúziu tabuliek typu Inner Join cez `datetime`.
+        """)
+
+    with st.expander("5. Výsledky a závěr"):
+        st.write("""
+        Dáta bezpečne preukazujú systematické obmedzovanie práv zraniteľných obyvateľov na dýchateľný vzduch.
+        Výsledky exaktne potvrdzujú našu teóriu: 
+        * Víkendový útlm a extrémne ranné špičky v pracovných dňoch usvedčujú automobilovú dopravu ako hlavného vinníka toxicity ovzdušia v meste.
+        * OLS regresia dokazuje, že mesto je plne odkázané na meteorologické javy (pri bezvetrí sa dusí v prachu).
+        * Mapy dlhodobého zaťaženia definitívne preukázali, že parky (Stromovka, Letná) zachytávajú aerosóly a plnia úlohu kritickej zdravotnej záchrannej zóny.
+        Na základe týchto zistení sme zostavili nekompromisný strategický 'Akčný plán' (dostupný v Tab-e 5 hlavnej aplikácie) pre okamžitý zásah mesta.
+        """)
+
+    with st.expander("6. Přehled zodpovědností členů týmu"):
+        st.write("""
+        * **Timea Halászová:** Manažment projektu a definícia byznys/policy modelu. *Zodpovednosť: Pretavenie technických dát do strategických a medicínskych argumentov pre Magistrát, definovanie Občianskych práv ako core metriky projektu.*
+        * **Zuzana Mitterová:** Metodika výskumu a vizualizácia. *Zodpovednosť: Aplikácia Data Storytellingu na demonštrovanie ohrozenia zdravia prostredníctvom dynamických Plotly a Carto máp. Práca s limitmi WHO.*
+        * **Bojan Petric:** Data engineering a čistenie dát. *Zodpovednosť: Práca s knižnicou Pandas, agregácie, fúzia meteorologických dát s environmentálnymi, stanovenie matematického výpočtu "Toxických hodín".*
+        * **Daniel Mucska:** Vývoj architektúry a API integrácia. *Zodpovednosť: Návrh a vývoj produkčnej cloudovej aplikácie v Streamlite, ošetrenie REST API requestov, CI/CD nasadenie projektu do cloudu a správa repozitára.*
+        """)
+
 
 # ============================================
 # REŽIM 2: DASHBOARD
@@ -334,7 +386,7 @@ elif app_mode == "📊 Zdravotný Dashboard":
             fig_h4.add_trace(go.Scattermapbox(lat=df_parks['lat'], lon=df_parks['lon'], mode='markers', marker=dict(size=14, color='#27ae60', opacity=0.6), name="Bezpečné zóny (Parky)", hoverinfo="text", text=df_parks['name']))
         st.plotly_chart(fig_h4, use_container_width=True)
 
-    # --- TAB 5: ODPORÚČANIA PRE MAGISTRÁT ---
+    # --- TAB 5: ODPORÚČANIA PRE MAGISTRÁT (MAPA ZÁSAHU) ---
     with tabs[4]:
         st.markdown("<div class='audit-title'>📋 Komplexný akčný plán: Záväzné odporúčania pre Magistrát hl. m. Prahy</div>", unsafe_allow_html=True)
         st.markdown("<div class='danger-card'><b>Upozornenie pre krízový štáb:</b> Dáta predložené v tomto audite potvrdzujú systematické porušovanie práva občanov na zdravé životné prostredie. Nasledujúci strategický plán poskytuje okamžité aj dlhodobé kroky pre odvrátenie hroziacich sankcií zo strany EÚ a predovšetkým pre ochranu zdravia detí a kardiakov.</div>", unsafe_allow_html=True)

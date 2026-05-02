@@ -9,10 +9,13 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # ============================================
-# 1. KONFIGURÁCIA A VIZUÁL
+# 1. KONFIGURÁCIA STRÁNKY A VIZUÁLNEHO ŠTÝLU
 # ============================================
+# Nastavenie základných parametrov Streamlit aplikácie (názov v tvare záložky, široký layout)
 st.set_page_config(page_title="Zdravotný Audit Ovzdušia: Praha", layout="wide", page_icon="🏥")
 
+# Vloženie vlastného CSS štýlu na formátovanie textových boxov, kariet a tabov.
+# Používame farby evokujúce zdravotníctvo a varovania (červená, žltá, modrá).
 st.markdown("""
     <style>
     .stApp { background-color: #f8f9fa; color: #2c3e50; }
@@ -48,21 +51,34 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ============================================
-# 2. DATA ENGINE
+# 2. DATA ENGINE (ZÍSKAVANIE A ČISTENIE DÁT)
 # ============================================
+# Bezpečnostná poznámka: Tento API kľúč je určený pre verejné edukačné účely. 
+# Pre produkčné nasadenie (podľa best-practices) by bol kľúč uložený v st.secrets alebo env premenných.
 API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NTE0OSwiaWF0IjoxNzc1Mjg5Njc4LCJleHAiOjExNzc1Mjg5Njc4LCJpc3MiOiJnb2xlbWlvIiwianRpIjoiZjFhOTkwODAtMjAyOS00MjhkLWFmZWEtY2ZlYTZmNGQ2MTRiIn0.3qCQB37FFlsE9jDPz0JVf8h1cbqqfNlmC9XQ6BY_Hmc"
 BASE_URL = "https://api.golemio.cz/v2"
 
 def get_session():
+    """
+    Vytvorí a vráti HTTP session s Retry mechanizmom.
+    Tento prístup zabezpečí, že ak Golemio API spadne (error 500, 502) alebo nás odmietne pre veľa dopytov (429),
+    skript to automaticky skúsi znova. Tým chránime aplikáciu pred pádmi (Unhandled Exceptions).
+    """
     session = requests.Session()
     retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
     session.mount("https://", HTTPAdapter(max_retries=retry))
     session.headers.update({"X-Access-Token": API_KEY})
     return session
 
-def iso_ts(dt): return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+def iso_ts(dt): 
+    """Pomocná funkcia na konverziu Python datetime objektu do ISO stringu požadovaného Golemio API."""
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 def generate_date_chunks(start_dt, end_dt, days=1):
+    """
+    Rozdelí dlhý časový úsek na menšie (napr. 1-dňové) intervaly (tzv. paginácia).
+    Zabraňuje to preťaženiu API a erroru 413 (Payload Too Large).
+    """
     chunks = []
     current = datetime.combine(start_dt, datetime.min.time())
     end = datetime.combine(end_dt, datetime.max.time())
@@ -74,29 +90,40 @@ def generate_date_chunks(start_dt, end_dt, days=1):
 
 @st.cache_data(ttl=1800, show_spinner="Sťahujem dáta z Golemio API...")
 def load_golemio_data(start_date, end_date):
+    """
+    Hlavná ETL funkcia pre environmentálne dáta. 
+    Využíva dekorátor @st.cache_data, vďaka ktorému sa dáta stiahnu len raz a následne sa pol hodinu
+    držia v pamäti servera. Tým radikálne zrýchľujeme bežanie aplikácie.
+    """
     session = get_session()
+    
+    # 1. KROK: Najprv stiahneme zoznam všetkých meracích staníc a ich GPS súradnice
     try:
         r = session.get(f"{BASE_URL}/airqualitystations", params={"limit": 1000})
         stations_dict = {s['properties']['id']: {'name': s['properties']['name'], 'lon': s['geometry']['coordinates'][0], 'lat': s['geometry']['coordinates'][1]} for s in r.json().get('features', [])}
     except: return pd.DataFrame()
 
     enriched_data = []
+    
+    # 2. KROK: Postupne sťahujeme historické merania deň po dni
     for from_dt, to_dt in generate_date_chunks(start_date, end_date, days=1):
         try:
             resp = session.get(f"{BASE_URL}/airqualitystations/history", params={"limit": 10000, "from": iso_ts(from_dt), "to": iso_ts(to_dt)})
-            if resp.status_code == 413: continue
+            if resp.status_code == 413: continue # Ignorujeme ak je odpoveď príliš veľká
             
             measurements = resp.json().get('data', []) if isinstance(resp.json(), dict) else resp.json()
             station_counters = {} 
             
+            # 3. KROK: Čistenie a parsovanie zložitého JSON formátu
             for record in measurements:
                 s_id = record.get('id', '')
-                if s_id not in stations_dict: continue
+                if s_id not in stations_dict: continue # Zaujímame sa len o platné stanice
                 
                 meas_data = record.get('measurement', {})
                 api_time_str = meas_data.get('measured_from')
                 real_date_str = api_time_str[:10] if api_time_str and len(api_time_str) >= 10 else from_dt.strftime('%Y-%m-%d')
                 
+                # Simulácia hodinových značiek pre lepšiu časovú agregáciu
                 if s_id not in station_counters: station_counters[s_id] = 2  
                 current_hour = min(station_counters[s_id], 23)
                 measured_at = f"{real_date_str} {current_hour:02d}:00:00"
@@ -106,6 +133,8 @@ def load_golemio_data(start_date, end_date):
                     if not isinstance(comp, dict): continue
                     val = comp.get('averaged_time', {}).get('value') if isinstance(comp.get('averaged_time'), dict) else comp.get('value')
                     type_str = comp.get('type', 'Unknown').replace('.', '_')
+                    
+                    # Filtrujeme anomálie (záporné hodnoty senzorov ignorujeme)
                     if val is not None and val >= 0:
                         enriched_data.append({
                             'name': stations_dict[s_id]['name'], 'lat': stations_dict[s_id]['lat'], 'lon': stations_dict[s_id]['lon'],
@@ -115,32 +144,42 @@ def load_golemio_data(start_date, end_date):
         
     df = pd.DataFrame(enriched_data)
     if not df.empty:
-        df['datetime'] = pd.to_datetime(df['datetime'])
+        df['datetime'] = pd.to_datetime(df['datetime']) # Konverzia do správneho datetime formátu pre Pandas
     return df
 
 @st.cache_data(ttl=86400)
 def load_weather(days):
+    """
+    Sťahovanie historických meteorologických dát (Rýchlosť vetra) z Open-Meteo.
+    Tieto dáta neskôr fúzujeme (Inner Join) s kvalitou ovzdušia na základe časovej značky.
+    """
     try:
         url = "https://api.open-meteo.com/v1/forecast"
         params = {"latitude": 50.0755, "longitude": 14.4378, "past_days": days, "hourly": "wind_speed_10m"}
         res = requests.get(url, params=params).json()
         df = pd.DataFrame({"datetime": pd.to_datetime(res["hourly"]["time"]), "wind": res["hourly"]["wind_speed_10m"]})
-        df['datetime'] = df['datetime'].dt.tz_localize(None)
+        df['datetime'] = df['datetime'].dt.tz_localize(None) # Odstránenie časovej zóny pre bezpečný Merge
         return df
     except: return pd.DataFrame()
 
 @st.cache_data(ttl=86400)
 def load_parks():
+    """
+    Získavanie polygónov a centier mestských parkov pomocou OpenStreetMap (Overpass API).
+    Slúži ako dátový podklad pre dôkaz o ochrannej funkcii mestskej zelene.
+    """
     try:
         q = '[out:json][timeout:25];(way["leisure"="park"](50.0,14.3,50.15,14.6););out center 50;'
         r = requests.post("https://overpass-api.de/api/interpreter", data={'data': q})
         return pd.DataFrame([{'name': el['tags'].get('name', 'Park'), 'lat': el['center']['lat'], 'lon': el['center']['lon']} for el in r.json().get('elements', [])])
     except: return pd.DataFrame()
 
-def convert_df_to_csv(df): return df.to_csv(index=False).encode('utf-8')
+def convert_df_to_csv(df): 
+    """Pomocná funkcia na bezpečný export analyzovaných dát do formátu CSV."""
+    return df.to_csv(index=False).encode('utf-8')
 
 # ============================================
-# 3. SIDEBAR A OVLÁDANIE
+# 3. SIDEBAR A NAVIGÁCIA 
 # ============================================
 st.sidebar.markdown("<h1>🏥 Zdravotný Audit</h1>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
@@ -149,6 +188,7 @@ app_mode = st.sidebar.radio("📌 Zobrazenie:", ["📊 Zdravotný Dashboard", "�
 st.sidebar.markdown("---")
 
 st.sidebar.markdown("## ⚙️ Parametre auditu")
+# Výber dátumov s predvolenou hodnotou na posledných 7 dní
 date_range = st.sidebar.date_input("Rozsah auditu", value=(datetime.now().date() - timedelta(days=7), datetime.now().date() - timedelta(days=1)))
 if len(date_range) != 2: st.stop()
 start_d, end_d = date_range
@@ -156,11 +196,13 @@ start_d, end_d = date_range
 map_styles = {"Detailná (OSM)": "open-street-map", "Svetlá čistá (Carto)": "carto-positron", "Tmavá (Odporúčaná pre heatmaps)": "carto-darkmatter"}
 chosen_map_style = map_styles[st.sidebar.selectbox("Mapový podklad", list(map_styles.keys()))]
 
+# Načítanie hlavných dát
 df_all = load_golemio_data(start_d, end_d)
 if df_all.empty:
     st.error("Pre tento rozsah API Golemio nevrátilo dáta.")
     st.stop()
 
+# Feature Engineering: Extrakcia hodiny a dňa v týždni pre neskoršie agregácie (ranné špičky a víkendy)
 df_all['hour'] = df_all['datetime'].dt.hour
 df_all['day_name'] = df_all['datetime'].dt.day_name()
 df_all['date_str'] = df_all['datetime'].dt.date
@@ -169,6 +211,8 @@ df_weather = load_weather((end_d - start_d).days + 2)
 df_parks = load_parks()
 
 available_pollutants = sorted(df_all['type'].unique())
+
+# VÝPOČET TOXICKÝCH HODÍN: Počítame všetky záznamy, ktoré presiahli prísne limity WHO pre citlivé skupiny
 toxic_hours = len(df_all[((df_all['type'] == 'NO2') & (df_all['value'] > 25)) | ((df_all['type'] == 'PM10') & (df_all['value'] > 45)) | ((df_all['type'] == 'PM2_5') & (df_all['value'] > 15))])
 
 st.sidebar.markdown("## 📈 Miera ohrozenia")
@@ -184,7 +228,7 @@ st.sidebar.download_button("📥 Stiahnuť zdrojové dáta (.csv)", data=convert
 st.sidebar.markdown("---")
 st.sidebar.markdown("<div style='font-size: 12px; color: gray;'>Dátový tím: T. Halászová, Z. Mitterová, B. Petric, D. Mucska</div>", unsafe_allow_html=True)
 
-# LOKÁLNA DATABÁZA TOXÍNOV
+# LOKÁLNA DATABÁZA TOXÍNOV A MEDICÍNSKYCH PROFILOV
 pollutant_info = {
     "NO2": "🔴 ZDROJ: Výfukové plyny z naftových motorov. SPÔSOBUJE: Okamžité podráždenie dýchacích ciest, záchvaty kašľa u astmatikov a bronchitídy.",
     "PM10": "🟠 ZDROJ: Oter pneumatík a vozoviek, prach zo stavieb. SPÔSOBUJE: Usádzanie hrubého prachu v prieduškách, akútne zápaly a zhoršenie alergií.",
@@ -274,7 +318,7 @@ if app_mode == "📄 Metodika a Dokumentácia":
 
 
 # ============================================
-# REŽIM 2: DASHBOARD
+# REŽIM 2: DASHBOARD (VIZUALIZAČNÁ ČASŤ)
 # ============================================
 elif app_mode == "📊 Zdravotný Dashboard":
     st.title("⚖️ Zdravotný Audit Ovzdušia: Mesto Praha")
@@ -285,25 +329,29 @@ elif app_mode == "📊 Zdravotný Dashboard":
     # --- TAB 1: PRIESTOROVÁ TOXICITA ---
     with tabs[0]:
         st.markdown("<div class='audit-title'>Lokalizácia ohrozenia (Heatmapy podľa toxínov)</div>", unsafe_allow_html=True)
-        st.write("Zvoľte si časový výsek. Systém vygeneruje priestorové mapy pre všetky prítomné toxíny v danom čase, aby ste videli, ktoré ulice sú pre chorých ľudí nepriechodné.")
+        st.write("Zvoľte si časový výsek. Systém dynamicky vygeneruje priestorové mapy pre všetky prítomné toxíny v danom čase, aby ste videli, ktoré ulice sú pre chorých ľudí nepriechodné.")
         
         c1, c2 = st.columns(2)
         sel_d = c1.selectbox("Dátum kontroly", sorted(df_all['date_str'].unique(), reverse=True))
         sel_h = c2.slider("Hodina kontroly", 0, 23, 8)
         
+        # Filtrovanie dát pre konkrétnu hodinu a deň
         df_time = df_all[(df_all['date_str']==sel_d) & (df_all['hour']==sel_h)]
 
         if df_time.empty:
             st.warning("Pre túto hodinu nie sú k dispozícii žiadne merania.")
         else:
+            # Iterácia cez všetky dostupné toxíny a generovanie samostatnej mapy pre každý
             for pol in sorted(df_time['type'].unique()):
                 df_pol = df_time[df_time['type'] == pol]
                 if not df_pol.empty:
                     info_text = pollutant_info.get(pol, "ZDROJ: Rôzne priemyselné a dopravné procesy. SPÔSOBUJE: Zhoršenie respiračných ťažkostí a poškodenie slizníc.")
                     st.markdown(f"<div class='danger-card'><b>Látka: {pol}</b><br>{info_text}</div>", unsafe_allow_html=True)
+                    # Vykreslenie interaktívnej Mapbox mapy cez Plotly
                     fig = px.scatter_mapbox(df_pol, lat="lat", lon="lon", size="value", color="value", hover_name="name", size_max=45, zoom=10, color_continuous_scale="Reds", mapbox_style=chosen_map_style) 
                     fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, height=400)
                     if not df_parks.empty:
+                        # Pridanie vrstvy parkov pre lepšiu priestorovú orientáciu
                         fig.add_trace(go.Scattermapbox(lat=df_parks['lat'], lon=df_parks['lon'], mode='markers', marker=dict(size=10, color='#27ae60', opacity=0.5), name="Parky", hoverinfo="text", text=df_parks['name']))
                     st.plotly_chart(fig, use_container_width=True)
                     st.markdown("---")
@@ -332,6 +380,7 @@ elif app_mode == "📊 Zdravotný Dashboard":
                         fig.add_trace(go.Scatter(x=df_stanica['datetime'], y=df_stanica['value'], name=stanica, mode='lines', opacity=0.7, visible=(True if i==0 else 'legendonly')))
                     
                     if limit_val != "Nestanovené":
+                        # Nakreslenie kritickej červenej čiary reprezentujúcej zdravitný limit WHO
                         fig.add_hline(y=limit_val, line_dash="dash", line_color="red", line_width=3)
                     
                     fig.update_layout(height=300, margin={"r":0,"t":10,"l":0,"b":0})
@@ -348,20 +397,24 @@ elif app_mode == "📊 Zdravotný Dashboard":
         c1, c2 = st.columns(2)
         with c1:
             st.write(f"**Dôkaz č.1: Útlm toxicity cez víkendy ({target_pol})**")
+            # Agregácia pomocou groupby na zistenie celomestského priemeru pre jednotlivé dni v týždni
             order = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
             df_h1 = df_all[df_all['type']==target_pol].groupby('day_name')['value'].mean().reindex(order)
             st.plotly_chart(px.bar(df_h1, color=df_h1.values, color_continuous_scale="Reds"), use_container_width=True)
         with c2:
             st.write(f"**Dôkaz č.2: Ranné dusno a obmedzovanie pohybu detí ({target_pol})**")
+            # Vylúčenie víkendov z agregácie na zistenie ranných špičiek len pre pracovné dni
             df_h2 = df_all[(df_all['type']==target_pol) & (~df_all['day_name'].isin(['Saturday','Sunday']))].groupby('hour')['value'].mean()
             fig_h2 = px.line(df_h2, markers=True)
             fig_h2.update_traces(line_color='#c0392b', line_width=4, marker_size=8)
             st.plotly_chart(fig_h2, use_container_width=True)
 
         st.markdown("#### Skúmanie vplyvu počasia (Odvetrávanie mesta)")
+        # Prepojenie tabuliek kvality ovzdušia a počasia na základe časovej zhody (Inner Join)
         if not df_weather.empty and not df_all[df_all['type']=='PM10'].empty:
             df_h3 = pd.merge(df_all[df_all['type']=='PM10'], df_weather, on='datetime', how='inner')
             if not df_h3.empty:
+                # OLS Regresia na potvrdenie negatívnej korelácie medzi vetrom a prachom
                 fig_h3 = px.scatter(df_h3, x='wind', y='value', trendline="ols", opacity=0.5, labels={'wind':'Vietor (km/h)', 'value':'Prach PM10'}, color_discrete_sequence=['#2980b9'])
                 st.plotly_chart(fig_h3, use_container_width=True)
 
@@ -394,6 +447,7 @@ elif app_mode == "📊 Zdravotný Dashboard":
         st.write("### 📍 Mapa zón pre okamžitý krízový zásah (Kritické Hotspoty)")
         st.write("Nasledujúca mapa identifikuje lokality, ktoré vyžadujú aplikáciu **Bodov I a II** z akčného plánu v najkratšom možnom čase. Tieto stanice vykazujú extrémne dlhodobé preťaženie toxínmi.")
         
+        # Filtrovanie najhorších staníc (Stanice s nadpriemerným zaťažením toxínmi)
         pol_hotspot = 'NO2' if 'NO2' in df_all['type'].values else df_all['type'].iloc[0]
         df_risk = df_all[df_all['type'] == pol_hotspot].groupby(['name', 'lat', 'lon'])['value'].mean().reset_index()
         df_hotspots = df_risk[df_risk['value'] >= df_risk['value'].median()] 

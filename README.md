@@ -1,80 +1,73 @@
-# 🎓 Datamining a vizualizácia: Kvalita ovzdušia v Prahe (Smart City Analytics)
+# 🏥 Zdravotný a Urbanistický Audit Ovzdušia: Mesto Praha (Smart City Analytics)
 
-Tento repozitár obsahuje zdrojové kódy a dokumentáciu k semestrálnemu projektu zameranému na dolovanie dát (datamining) a interaktívnu geopriestorovú vizualizáciu. Aplikácia je napísaná v jazyku **Python** s využitím frameworku **Streamlit** (ako moderná alternatíva k R/Shiny).
+Tento repozitár obsahuje zdrojové kódy a dokumentáciu k semestrálnemu projektu zameranému na dolovanie dát (datamining). Odklonili sme sa od čisto environmentálneho pohľadu a projekt sme preklopili do roviny **ochrany občianskych práv a verejného zdravia**.
+
+Aplikácia je napísaná v jazyku **Python** s využitím frameworku **Streamlit**. K tomuto kroku sme pristúpili (namiesto využitia .Rmd) z dôvodu, že Streamlit nám umožňuje postaviť plnohodnotnú cloudovú dátovú aplikáciu (Policy Dashboard) s plynulým live napojením na REST API, čím lepšie simulujeme reálne nasadenie dátových produktov v praxi.
 
 🌍 **Živá ukážka aplikácie (Live App): https://datamining-projekt2026.streamlit.app**
 
 ---
 
+## 🤝 Metodika tímovej spolupráce a správa repozitára
+*Na základe spätnej väzby k projektu transparentne deklarujeme náš postup spolupráce:*
+Projekt sme nestavali ako sériu oddelených statických analýz, ale ako ucelený, navzájom previazaný softvérový produkt s interaktívnym GUI. Klasické merge-ovanie menších častí kódu od viacerých ľudí do jedného front-end súboru by spôsobovalo konflikty v užívateľskom prostredí. Preto sme zvolili agilný prístup **Pair-programmingu (spoločného kódovania) cez videohovory na MS Teams so zdieľaním obrazovky.** Všetka analytická a biznisová logika vzišla zo spoločných tímových diskusií, pričom jeden člen tímu (Daniel Mucska) zastával rolu *Release Managera* a z dôvodu udržania stability CI/CD pipeline pushoval spoločne schválený kód do tohto Git repozitára.
+
 ## 👥 Autorský tím a rozdelenie rolí
-* **Timea Halászová:** Manažment projektu a definícia byznys modelu. Príprava manažérskeho zhrnutia. *(Naučila sa prepájať tvrdé dáta z API s reálnym komerčným využitím v Smart City segmente).*
-* **Zuzana Mitterová:** Metodika výskumu a vizualizácia dát (Plotly). *(Zdokonalila sa v princípoch Data Storytellingu a tvorbe interaktívnych geopriestorových máp).*
-* **Bojan Petric:** Data engineering a čistenie dát. *(Osvojil si prácu s knižnicou Pandas, tvorbu agregačných funkcií a riešenie anomálií v reálnych senzorických dátach).*
-* **Daniel Mucska:** Vývoj architektúry a API integrácia (Streamlit). *(Naučil sa budovať robustné dátové pipeline, parsovať komplexné JSON štruktúry a ošetrovať výpadky serverov).*
+* **Timea Halászová:** Manažment projektu a definícia byznys/policy modelu. *(Zodpovednosť: Pretavenie technických dát do strategických a medicínskych argumentov pre Magistrát, definovanie ohrozenia občianskych práv).*
+* **Zuzana Mitterová:** Metodika výskumu a vizualizácia dát (Plotly). *(Zodpovednosť: Aplikácia Data Storytellingu na demonštrovanie ohrozenia zdravia. Mapovanie meraní voči prísnym limitom WHO).*
+* **Bojan Petric:** Data engineering a čistenie dát. *(Zodpovednosť: Práca s knižnicou Pandas, agregácie, fúzia meteorologických dát s environmentálnymi, stanovenie matematického výpočtu pre "Toxické hodiny").*
+* **Daniel Mucska:** Vývoj architektúry a API integrácia (Streamlit). *(Zodpovednosť: Návrh cloudovej aplikácie, ošetrenie REST API requestov, Release management a správa repozitára).*
 
 ---
 
 ## 📊 1. Manažérske zhrnutie (Executive Summary)
-Náš projekt predstavuje plne automatizovaný dataminingový dashboard, ktorý v reálnom čase integruje dáta z nezávislých API rozhraní. Nástroj spracováva historické aj aktuálne dáta o kvalite ovzdušia v Prahe a vizualizuje ich v 4D priestore (geolokácia + čas). Výstupom sú exaktné vedecké dôkazy o vplyve dopravy a prírodných faktorov na znečistenie, podané vo forme interaktívnych reportov pre top manažment mesta a urbanistov.
+Náš projekt predstavuje plne automatizovaný nástroj pre krízový manažment mesta. Nástroj historicky vyhodnocuje dáta z vládneho Golemio API, prepája ich s mestskou infraštruktúrou (parky) a meteorológiou. Výstupom sú exaktné dôkazy o tom, kedy sú obyvatelia (najmä astmatici a deti) obmedzovaní vo svojom voľnom pohybe kvôli toxicite. Aplikácia poskytuje Magistrátu priame argumenty na zavádzanie tvrdých regulácií.
 
-## 💼 2. Definícia problému a byznysový prínos
-* **Definícia problému:** Mesto Praha čelí zníženej kvalite života obyvateľov kvôli smogovým situáciám. Chýba však centralizovaný nástroj, ktorý by na jedno kliknutie koreloval stav ovzdušia s dopravnými špičkami, poveternostnými podmienkami a mapou mestskej zelene.
-* **Byznysový prínos:**
-  1. **Optimalizácia dopravy:** Nástroj exaktne identifikuje kritické hodiny a úseky, čo umožňuje efektívnejšie riadenie dopravy (dynamické mýto, nízkoemisné zóny).
-  2. **Real Estate a urbanizmus:** Potvrdenie "ochrannej funkcie" parkov poskytuje tvrdé dáta pri naceňovaní nehnuteľností v blízkosti zelene.
-  3. **Zdravotníctvo:** Predikcia smogových cyklov umožňuje včasné varovanie rizikových skupín obyvateľstva.
+## 💼 2. Definícia problému a prínos pre Magistrát
+* **Definícia problému:** Mesto Praha čelí skrytej kríze verejného zdravia. Pre zraniteľné skupiny obyvateľstva predstavuje súčasný stav ovzdušia priame ohrozenie života a obmedzenie práva na voľný pohyb. Magistrátu chýbal nástroj, ktorý by exaktne identifikoval zdroje (autá vs. počasie) a priamo obhajoval investície do obranných mechanizmov (zeleň).
+* **Byznysový / Politický prínos:**
+  1. **Riadenie dopravy:** Poskytnutie dát (ranné špičky) na zavedenie dynamického mýta a zákazov vjazdu k školám.
+  2. **Urbanizmus:** Dodanie vedeckých dôkazov, že parky fungujú ako fyzické filtre (bezpečné oázy), čím sa zabezpečí ich ochrana pred developerskou výstavbou.
+  3. **Zdravotná prevencia:** Výpočet "Toxických hodín" umožňuje včasné SMS varovanie pre obyvateľstvo.
 
 ## 🧬 3. Vstupné dáta a metodika (Data Fusion)
 Projekt spája dáta z 3 nezávislých zdrojov pomocou metódy *Inner Join* cez časové a priestorové kľúče:
-* **Golemio API (v2):** Primárny zdroj. Zber hodinových koncentrácií znečisťujúcich látok (NO2, PM10, PM2.5, O3) z oficiálnych IoT senzorov mesta.
-* **Open-Meteo API:** Historické meteorologické dáta (rýchlosť vetra) priradené k časovým značkám senzorov.
-* **Overpass API (OpenStreetMap):** Extrakcia priestorových polygónov mestskej zelene (najväčšie pražské parky).
+* **Golemio API (v2):** Primárny zdroj. Zber hodinových koncentrácií všetkých zachytených toxínov (NO2, PM10, PM2.5, O3, SO2, CO, atď.) z IoT senzorov mesta.
+* **Open-Meteo API:** Historické meteorologické dáta (rýchlosť vetra) pre modelovanie disperzie.
+* **Overpass API (OpenStreetMap):** Extrakcia priestorových polygónov mestskej zelene.
 
-**Pracovný postup čistenia (ETL):** Skript ošetruje chýbajúce hodnoty (`None`), odstraňuje anomálne záporné hodnoty senzorov, unifikuje názvoslovie analytov a extrahuje z ISO časových značiek nové premenné (`hour`, `day_name`) pre potreby agregácie.
+**Dátové mantinely:** Namiesto benevolentných národných noriem aplikácia vyhodnocuje všetky dáta výlučne voči prísnym kritériám Svetovej zdravotníckej organizácie (WHO).
 
-## 🔬 4. Skúmané oblasti a metodika
-Projekt opustil prístup statických "hypotéz" a využíva komplexné skúmanie problému od definície limitov až po riešenia:
-1. **Zdravotné mantinely:** Kvantifikácia hodín, počas ktorých boli prekročené limity WHO pre zraniteľné skupiny (astmatici).
-2. **Dopravná záťaž:** Identifikácia zdrojov smogu – analýza víkendového útlmu a ranných dopravných špičiek.
-3. **Počasie:** Modelovanie vplyvu sily vetra na disperziu (rozptyl) jemných prachových častíc.
-4. **Urbanizmus:** Geopriestorová analýza ochranného vplyvu mestskej zelene (parkov) voči znečisteniu z okolitých ulíc.
+## 🔬 4. Štruktúra auditu (Oblasti skúmania)
+1. **Priestorová toxicita:** Mapovanie (Heatmapy) preukazujúce, ktoré ulice sú v daný čas pre chorých ľudí nepriechodné.
+2. **Medicínske profily:** Kvantifikácia zlyhaní mesta v ochrane zdravia (prekračovanie limitov WHO).
+3. **Mobilita a Počasie:** Diagnostika príčin. Analýza víkendového útlmu, ranných dopravných špičiek a vplyvu sily vetra na odvetrávanie mesta.
+4. **Urbanistická obrana:** Priestorové dôkazy o tom, že mestské parky znižujú dlhodobé priemery toxicity a slúžia ako záchranné zóny.
 
-## 💡 5. Výsledky a závery
-Všetky 4 definované hypotézy boli na základe dolovania dát úspešne **verifikované**:
-* Dáta jednoznačne usvedčujú individuálnu automobilovú dopravu ako hlavného emitenta NO2 (signifikantný pokles cez víkendy a jasne identifikovateľné ranné špičky).
-* Štatistická OLS regresia dokázala, že vietor čistí mesto od prachu (inverzná korelácia).
-* Geopriestorové mapy potvrdili, že oblasti v bezprostrednom okolí mestských parkov fungujú ako ochranné zóny s najčistejším ovzduším v meste.
+## 💡 5. Závery a Strategický plán
+Dáta bezpečne preukázali systematické obmedzovanie práv zraniteľných obyvateľov (extrémy počas ranných špičiek, závislosť na vetre). Na základe týchto zistení obsahuje aplikácia **komplexný akčný plán**, ktorý odporúča 4 piliere zásahu:
+1. Radikálna reorganizácia mestskej mobility (Školské ulice, dynamické mýto).
+2. Zelená defenzíva (Stavebné uzávery na parky, izolačné bariéry pozdĺž radiál).
+3. Krízový zdravotný systém (SMS varovania pri bezvetrí).
+4. Vznik Fondu čistého ovzdušia.
 
 ---
 
 ## 🛠️ Návod na spustenie projektu lokálne
 
-Projekt vyžaduje nainštalovaný **Python 3.14+**.
+Aplikácia je primárne nasadená v cloude (Streamlit Community Cloud). Pre lokálne otestovanie hodnotiteľmi postupujte nasledovne (vyžaduje sa **Python 3.8+**):
 
 **1. Klonovanie repozitára:**
-
+```bash
 git clone [https://github.com/MuDan96/Datamining-projekt.git](https://github.com/MuDan96/Datamining-projekt.git)
-_cd Datamining-projekt_
-
-**2. Inštalácia potrebných knižníc:**
-
+cd Datamining-projekt
+2. Inštalácia potrebných knižníc:
 Aplikácia využíva knižnice definované v súbore requirements.txt. Nainštalujete ich príkazom:
 
-_pip install -r requirements.txt_
+Bash
+pip install -r requirements.txt
+3. Spustenie vývojového servera:
 
-**3. Spustenie Streamlit servera:**
-
-_streamlit run air_app.py_
-
-_Následne sa automaticky otvorí prehliadač s bežiacim dashboardom na adrese http://localhost:8501._
-
-### 3. Súbor: `requirements.txt`
-*Ak by si ho náhodou na GitHube nemal aktuálny, musí obsahovať presne toto:*
-
-```text
-streamlit
-pandas
-plotly
-requests
-numpy
-statsmodels
+Bash
+streamlit run air_app.py
+Následne sa automaticky otvorí prehliadač s bežiacim dashboardom na adrese http://localhost:8501.

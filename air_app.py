@@ -412,43 +412,88 @@ elif app_mode == "📊 Zdravotný Dashboard":
             fig_summary.update_layout(height=450, margin={"r":0,"t":10,"l":0,"b":0}, xaxis=dict(tickmode='linear', tick0=0, dtick=2))
             st.plotly_chart(fig_summary, use_container_width=True)
 
-    # --- TAB 1: ODPORÚČANIA PRE MAGISTRÁT (MAPA ZÁSAHU) ---
+   # --- TAB 1: ODPORÚČANIA PRE MAGISTRÁT (MAPA ZÁSAHU) ---
     with tabs[1]:
-        st.markdown("<div class='audit-title'>📋 Komplexný akčný plán: Ochrana zdravia pacientov s CHOPN</div>", unsafe_allow_html=True)
-        st.markdown("<div class='danger-card'><b>Upozornenie pre krízový štáb:</b> Dáta preukazujú systematické ohrozovanie zdravia pacientov s CHOPN a astmou. Nasledujúci strategický plán poskytuje okamžité kroky pre zníženie mortality a akútnych hospitalizácií vo vašom meste.</div>", unsafe_allow_html=True)
-
-        st.write("### 📍 Mapa zón pre okamžitý krízový zásah (CHOPN Hotspoty)")
-        st.write("Lokality označené na mape vykazujú dlhodobo kritické hodnoty. Tieto miesta sú pre pacientov s chronickými respiračnými ochoreniami **život ohrozujúce** a vyžadujú okamžitú dopravnú reguláciu.")
+        st.markdown("<div class='audit-title'>📋 Záväzný akčný plán krízovej intervencie (CHOPN)</div>", unsafe_allow_html=True)
         
+        st.markdown("""
+        <div class='danger-card'>
+            <b><span style='font-size: 18px;'>🚨 Smernica pre Magistrát hl. m. Prahy</span></b><br>
+            Dáta preukazujú systematické ohrozovanie zdravia chronicky chorých pacientov s CHOPN a astmou. Nasledujúci strategický dokument poskytuje fázované exekutívne kroky pre okamžité zníženie mortality a odľahčenie akútnych nemocničných príjmov.
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("### 📍 FÁZA 1: Okamžitá mitigácia v kritických zónach (Hotspoty)")
+        st.write("Lokality označené na mape vykazujú dlhodobo najvyššie koncentrácie toxínov. Pre pacientov s respiračnými ochoreniami sú tieto miesta **život ohrozujúce** a vyžadujú prioritné nasadenie dopravných regulácií.")
+        
+        # Identifikácia najhorších staníc
         pol_hotspot = 'NO2' if 'NO2' in df_all['type'].values else df_all['type'].iloc[0]
         df_risk = df_all[df_all['type'] == pol_hotspot].groupby(['name', 'lat', 'lon'])['value'].mean().reset_index()
-        df_hotspots = df_risk[df_risk['value'] >= df_risk['value'].median()] 
+        # Zotriedenie od najhoršej po najlepšiu a vyfiltrovanie hornej polovice
+        df_hotspots = df_risk[df_risk['value'] >= df_risk['value'].median()].sort_values('value', ascending=False)
         
-        fig_action = px.scatter_mapbox(df_hotspots, lat="lat", lon="lon", size="value", color_discrete_sequence=["#c0392b"], hover_name="name", size_max=25, zoom=10.5, mapbox_style=chosen_map_style, height=450)
-        fig_action.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
-        st.plotly_chart(fig_action, use_container_width=True)
+        # Rozdelenie na mapu a dátovú tabuľku s TOP 5 najhoršími stanicami
+        col_map, col_table = st.columns([2, 1])
+        
+        with col_map:
+            fig_action = px.scatter_mapbox(df_hotspots, lat="lat", lon="lon", size="value", color_discrete_sequence=["#c0392b"], hover_name="name", size_max=25, zoom=10.5, mapbox_style=chosen_map_style, height=400)
+            fig_action.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+            st.plotly_chart(fig_action, use_container_width=True)
+            
+        with col_table:
+            st.markdown("<b>Kritické uzly (TOP 5 Red Zones):</b>", unsafe_allow_html=True)
+            # Vykreslenie krásnej tabuľky priamo zo zoradeného dataframe-u
+            st.dataframe(
+                df_hotspots[['name', 'value']].head(5).rename(columns={'name': 'Meracia stanica', 'value': f'Ø {pol_hotspot} (µg/m³)'}), 
+                hide_index=True, 
+                use_container_width=True
+            )
+            st.markdown("<i style='font-size: 13px; color: #7f8c8d;'>Tieto uzly musia byť primárnym cieľom okamžitého obmedzenia dopravy z dôvodu najvyššieho rizika exacerbácie CHOPN.</i>", unsafe_allow_html=True)
 
         st.markdown("---")
-        st.markdown("### 🏛️ Strategické piliere nápravných opatrení")
+        st.markdown("### 🏛️ FÁZA 2: Strategické piliere nápravných opatrení")
         
-        st.markdown("#### 🚨 PILIER I: Radikálna reorganizácia dopravy (Zníženie rizika exacerbácií)")
-        st.markdown("""
-        * **Zamedzenie ranných špičiek (Školské ulice):** Eliminácia prachu a výfukov z áut rodičov zakázaním vjazdu do okolia škôl a nemocníc od 7:00 do 8:30.
-        * **Dynamické mýto v centre:** Pri prekročení denných limitov PM2.5 sa systém dynamicky prepne do krízového režimu – vjazd áut nerezidentov sa zdražie trojnásobne s cieľom chrániť pľúca obyvateľov.
-        * **Podpora P+R:** Bezplatná MHD pre záchytné parkoviská na kraji mesta počas dní so zhoršenými rozptylovými podmienkami.
-        """)
+        # Pilier 1 (Doprava)
+        with st.expander("🚨 PILIER I: Radikálna reorganizácia dopravy (Zníženie rizika exacerbácií)", expanded=True):
+            st.markdown("""
+            **Cieľ opatrenia:** Redukcia denných priemerov NO2 a jemného prachu v dýchacích zónach o 30 % do 12 mesiacov.
+            
+            * **Opatrenie 1.1: Zamedzenie ranných špičiek (Školské ochranné zóny)**
+                * *Popis:* Eliminácia prachu a výfukov zakázaním vjazdu individuálnej dopravy do okolia škôl a nemocníc v čase od 7:00 do 8:30.
+                * *Gestor:* Odbor dopravy MHMP | *Horizont nasadenia:* Q3 2026
+            * **Opatrenie 1.2: Dynamické mýto v centre (Smart Tolling)**
+                * *Popis:* Napojenie dopravného mýta priamo na dáta z Golemio API. Pri prekročení limitov PM2.5 sa systém dynamicky prepne do krízového režimu a vjazd áut nerezidentov sa zdražie trojnásobne.
+                * *Gestor:* Operátor ICT / Odbor dopravy MHMP | *Horizont nasadenia:* Q1 2027
+            * **Opatrenie 1.3: Krízová podpora P+R infraštruktúry**
+                * *Popis:* Zavedenie bezplatnej MHD pre záchytné parkoviská na kraji mesta výhradne počas dní so zhoršenými rozptylovými podmienkami (inverzia).
+                * *Gestor:* ROPID | *Horizont nasadenia:* Okamžite
+            """)
 
-        st.markdown("#### 🌳 PILIER II: Zelená defenzíva (Izolačné bariéry)")
-        st.markdown("""
-        * **Nedotknuteľnosť mestskej zelene:** Územné garantovanie zachovania parkov (najmä Stromovka a Letná), nakoľko z dát jasne vyplýva, že listy stromov fungujú ako obrovský fyzický lapač prachových častíc (PM10).
-        * **Povinné zelené strechy:** Nové developerské projekty v centre musia povinne integrovať certifikované zelené steny na záchyt toxínov z ulice.
-        """)
+        # Pilier 2 (Zeleň a Urbanizmus)
+        with st.expander("🌳 PILIER II: Zelená defenzíva a urbanizmus (Fyzické izolačné bariéry)"):
+            st.markdown("""
+            **Cieľ opatrenia:** Pasívna filtrácia aerosólov a zachovanie dýchateľných "záchranných oáz" pre dispenzarizovaných pacientov.
+            
+            * **Opatrenie 2.1: Legislatívna nedotknuteľnosť mestskej zelene**
+                * *Popis:* Územné garantovanie zachovania parkov (najmä Stromovka a Letná). Analýza potvrdila ich nezastupiteľnú ochrannú funkciu ako plošného lapača prachových častíc (PM10).
+                * *Gestor:* IPR Praha / Odbor ochrany prostredia MHMP | *Horizont nasadenia:* Okamžite
+            * **Opatrenie 2.2: Povinná vertikálna filtrácia (Zelené fasády)**
+                * *Popis:* Nové developerské projekty v širšom centre musia do projektovej dokumentácie povinne integrovať certifikované zelené steny na záchyt toxínov z ulice.
+                * *Gestor:* Stavebný úrad MHMP | *Horizont nasadenia:* Q4 2026
+            """)
 
-        st.markdown("#### ⚕️ PILIER III: Zdravotná prevencia (Systém včasného varovania)")
-        st.markdown("""
-        * **Prepojenie Golemio API so zdravotníctvom:** Zavedenie SMS notifikácií. Ak predpoveď hlási vietor pod 5 km/h, mesto pošle pacientom s CHOPN varovanie, aby v ten deň obmedzili pobyt vonku a predišli tak kolapsom dýchacích ciest.
-        * **Dotácie na HEPA filtráciu:** Distribúcia interiérových čističiek vzduchu do domovov dôchodcov a nemocníc v oblastiach kritických "hotspotov" z mapy.
-        """)
+        # Pilier 3 (Zdravotníctvo a prevencia)
+        with st.expander("⚕️ PILIER III: Zdravotná prevencia a krízový manažment (Early Warning System)"):
+            st.markdown("""
+            **Cieľ opatrenia:** Predchádzanie fatálnym respiračným kolapsom a zníženie akútnych príjmov na oddeleniach JIS a ARO.
+            
+            * **Opatrenie 3.1: Systém včasného varovania (Prepojenie API a VZP)**
+                * *Popis:* Ak prediktívny meteorologický model hlási vietor pod 5 km/h a hrozbu inverzie, Magistrát prostredníctvom zdravotných poisťovní automaticky odošle SMS varovanie registrovaným pacientom s CHOPN a kardiakom, aby minimalizovali pobyt v exteriéri.
+                * *Gestor:* Odbor zdravotníctva MHMP vo fúzii s VZP | *Horizont nasadenia:* Q4 2026
+            * **Opatrenie 3.2: Cielené dotácie na HEPA filtráciu**
+                * *Popis:* Okamžitá distribúcia a alokácia mestského rozpočtu na interiérové čističky vzduchu do domovov seniorov, pľúcnych ambulancií a škôlok nachádzajúcich sa v oblastiach 5 najhorších "hotspotov" z mapy vyššie.
+                * *Gestor:* Magistrát hl. m. Prahy | *Horizont nasadenia:* Q3 2026
+            """)
 
     # --- TAB 2: PRIESTOROVÁ TOXICITA ---
     with tabs[2]:

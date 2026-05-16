@@ -33,6 +33,10 @@ st.markdown("""
         background-color: #fdedec; border-radius: 8px; padding: 20px; 
         border-left: 5px solid #e74c3c; margin-bottom: 20px;
     }
+    .info-card {
+        background-color: #e8f4f8; border-radius: 8px; padding: 20px; 
+        border-left: 5px solid #3498db; margin-bottom: 25px;
+    }
     .audit-title { color: #2c3e50; font-size: 20px; font-weight: bold; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
     .audit-text { font-size: 15px; line-height: 1.6; color: #34495e; margin-bottom: 15px; text-align: justify; }
     
@@ -53,7 +57,6 @@ st.markdown("""
 # ============================================
 # 2. DATA ENGINE (ZÍSKAVANIE A ČISTENIE DÁT)
 # ============================================
-# Bezpečné načítanie API kľúča zo Streamlit Secrets
 try:
     API_KEY = st.secrets["GOLEMIO_API_KEY"]
 except KeyError:
@@ -198,8 +201,6 @@ df_parks = load_parks()
 
 available_pollutants = sorted(df_all['type'].unique())
 
-# VÝPOČET TOXICKÝCH HODÍN: Filtrácia nadlimitných hodnôt a zistenie UNIKÁTNYCH HODÍN,
-# aby sme predišli duplikácii hodín v prípade, že je naraz zamorených viacero staníc.
 toxic_measurements = df_all[
     ((df_all['type'] == 'NO2') & (df_all['value'] > 25)) | 
     ((df_all['type'] == 'PM10') & (df_all['value'] > 45)) | 
@@ -222,7 +223,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("<div style='font-size: 12px; color: gray;'>Dátový tím: T. Halászová, Z. Mitterová, B. Petric, D. Mucska</div>", unsafe_allow_html=True)
 
 # ============================================
-# LOKÁLNA METADÁTOVÁ DATABÁZA (Prepracovaná na CHOPN)
+# LOKÁLNA METADÁTOVÁ DATABÁZA (CHOPN Profil)
 # ============================================
 pollutant_info = {
     "NO2": "🔴 ZDROJ: Výfukové plyny (nafta). RIZIKO PRE CHOPN: Oxid dusičitý vyvoláva okamžité stiahnutie priedušiek, silný kašeľ a zvyšuje riziko urgentnej hospitalizácie.",
@@ -254,6 +255,13 @@ med_desc = {
 if app_mode == "📄 Metodika a Dokumentácia":
     st.title("📄 Dokumentácia: Zdravotný audit ovzdušia a dopad na CHOPN")
     
+    st.markdown("""
+    <div class='info-card'>
+        <b style='color: #2980b9; font-size: 18px;'>🫁 Čo je to CHOPN?</b><br>
+        <b>Chronická obštrukčná choroba pľúc (CHOPN)</b> je progresívne a nevyliečiteľné ochorenie dýchacích ciest, pri ktorom dochádza k trvalému zúženiu priedušiek a poškodeniu pľúcnych alveol. Zatiaľ čo pre zdravého človeka je smog "nepríjemný", pre pacienta s CHOPN predstavujú už mierne zvýšené koncentrácie toxínov v ovzduší priame ohrozenie života, nakoľko vyvolávajú ťažké záchvaty dusenia (tzv. exacerbácie) a masívne zvyšujú riziko úmrtia.
+    </div>
+    """, unsafe_allow_html=True)
+    
     with st.expander("1. Manažerské shrnutí (Executive Summary)", expanded=True):
         st.write("""
         Náš projekt predstavuje plne automatizovaný nástroj pre krízový manažment a urbanistické plánovanie mesta Prahy. 
@@ -284,12 +292,12 @@ if app_mode == "📄 Metodika a Dokumentácia":
     with st.expander("4. Volba metody, argumentace a pracovní postup"):
         st.write("""
         Vyvinuli sme nasaditeľný "Policy Dashboard" pre Magistrát. Namiesto izolovaných .Rmd notebookov sme projekt postavili na modernom technologickom stacku **Python + Streamlit framework**.
-        Tento agilný prístup (ktorého kód bol synchronizovaný cez prístup tzv. *Pair-programmingu*) simuluje reálne nasadenie dátových Health-Tech produktov v praxi, zatiaľ čo ETL pipeline automaticky zabezpečuje čistenie dát (handling anomálnych hodnôt, deduplikáciu "Toxických hodín" a ISO konverzie časových značiek).
+        Tento agilný prístup simuluje reálne nasadenie dátových Health-Tech produktov v praxi, zatiaľ čo ETL pipeline automaticky zabezpečuje čistenie dát (handling anomálnych hodnôt, deduplikáciu "Toxických hodín" a ISO konverzie časových značiek).
         """)
 
     with st.expander("5. Výsledky a závěr"):
         st.write("""
-        Dáta potvrdili, že mesto systematicky zlyháva v ochrane pacientov s CHOPN. Ranné automobilové špičky v pracovných dňoch produkujú toxické množstvá NO2 a PM10, ktoré sú hlavnými spúšťačmi exacerbácií. Pri bezvetrí (vietor < 5 km/h) mesto preukázateľne stráca samočistiacu schopnosť. Navrhli sme preto radikálny 'Akčný plán' s návrhom na záchytné parkoviská a nedotknuteľnosť mestských parkov (ktoré podľa dát fungujú ako útočiská s dýchateľným vzduchom).
+        Dáta potvrdili, že mesto systematicky zlyháva v ochrane pacientov s CHOPN. Ranné automobilové špičky v pracovných dňoch produkujú toxické množstvá NO2 a PM10, ktoré sú hlavnými spúšťačmi exacerbácií. Pri bezvetrí (vietor < 5 km/h) mesto preukázateľne stráca samočistiacu schopnosť. Navrhli sme preto radikálny 'Akčný plán' s návrhom na záchytné parkoviská a nedotknuteľnosť mestských parkov.
         """)
 
     with st.expander("6. Přehled zodpovědností členů týmu"):
@@ -297,7 +305,7 @@ if app_mode == "📄 Metodika a Dokumentácia":
         * **Timea Halászová:** Manažment projektu a definícia byznys modelu. *Zodpovednosť: Pivotovanie projektu na CHOPN, integrácia lekárskych faktov a ERS štúdií do dátovej argumentácie.*
         * **Zuzana Mitterová:** Metodika výskumu a vizualizácia. *Zodpovednosť: Aplikácia Data Storytellingu na demonštrovanie dopadov na zdravie pacientov. Mapovanie meraní voči prísnym limitom WHO.*
         * **Bojan Petric:** Data engineering a čistenie dát. *Zodpovednosť: Práca s knižnicou Pandas, matematická deduplikácia pre stanovenie výpočtu "Toxických hodín", fúzia meteorologických dát s environmentálnymi.*
-        * **Daniel Mucska:** Vývoj architektúry a API integrácia. *Zodpovednosť: Návrh cloudovej aplikácie v Streamlite, ošetrenie REST API výpadkov, Release management (commitovanie schváleného kódu do repozitára z dôvodu udržania stability CI/CD).*
+        * **Daniel Mucska:** Vývoj architektúry a API integrácia. *Zodpovednosť: Návrh cloudovej aplikácie v Streamlite, ošetrenie REST API výpadkov, Release management a správa repozitára.*
         """)
 
 # ============================================
@@ -311,6 +319,15 @@ elif app_mode == "📊 Zdravotný Dashboard":
 
     # --- TAB 0: HLAVNÝ PREHĽAD (EXECUTIVE SUMMARY) ---
     with tabs[0]:
+        
+        # INFORMAČNÝ BOX O CHOPN NA VRCHU STRÁNKY
+        st.markdown("""
+        <div class='info-card'>
+            <b style='color: #2980b9; font-size: 18px;'>ℹ️ Čo je to CHOPN a prečo na tom záleží?</b><br>
+            <b>Chronická obštrukčná choroba pľúc (CHOPN)</b> je progresívne a nevyliečiteľné ochorenie, pri ktorom dochádza k trvalému zúženiu dýchacích ciest. Zatiaľ čo zdravý človek vníma smog len ako "nekomfort", pre pacienta s CHOPN predstavujú už mierne zvýšené koncentrácie toxínov (najmä PM2.5 a NO2) priame ohrozenie života, vyvolávajú ťažké záchvaty dusenia (exacerbácie) a masívne zvyšujú riziko okamžitej hospitalizácie. Tento audit exaktne meria, kedy je mesto pre túto skupinu nebezpečné.
+        </div>
+        """, unsafe_allow_html=True)
+        
         st.markdown("<div class='audit-title'>📊 Executive Summary: Manažérsky prehľad zistení pre krízový štáb</div>", unsafe_allow_html=True)
         
         target_pol = 'NO2' if 'NO2' in available_pollutants else available_pollutants[0]

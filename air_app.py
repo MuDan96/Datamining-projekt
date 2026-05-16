@@ -332,26 +332,21 @@ elif app_mode == "📊 Zdravotný Dashboard":
 
     tabs = st.tabs(["📊 Hlavný prehľad", "📋 Akčný plán mesta", "🌍 1. Priestorová toxicita", "🏥 2. Klinické profily CHOPN", "🚗🌬️ 3. Mobilita a Počasie", "🌲 4. Záchranné parky"])
 
-    # --- TAB 0: HLAVNÝ PREHĽAD (EXECUTIVE SUMMARY) ---
+ # --- TAB 0: HLAVNÝ PREHĽAD (EXECUTIVE SUMMARY) ---
     with tabs[0]:
         
         # INFORMAČNÝ BOX O CHOPN NA VRCHU STRÁNKY (Kontext, štatistika, zdroje)
-        st.markdown(f"""
-        <div class='info-card'>
-            <b style='color: #2980b9; font-size: 18px;'>🫁 Čo je to CHOPN a koho v meste ohrozuje?</b><br>
-            <b>Chronická obštrukčná choroba pľúc (CHOPN)</b> je progresívne, trvalé zúženie dýchacích ciest. Pre pacienta s CHOPN predstavujú už mierne zvýšené koncentrácie toxínov priame ohrozenie života, vyvolávajú ťažké záchvaty dusenia (exacerbácie) a masívne zvyšujú riziko okamžitej hospitalizácie a predčasného úmrtia.<br><br>
-            
-            <b>👥 Štatistika v Prahe:</b> Odhaduje sa, že CHOPN trpí v ČR približne 8 % populácie. Len v hlavnom meste Prahe to predstavuje <b>viac ako 20 000 aktívne liečených pacientov</b>, pričom celkový počet (vrátane nediagnostikovaných prípadov) dosahuje hranicu <b>až 80 000 ohrozených obyvateľov</b>.<br><br>
-            
-            <b>📅 Analyzované obdobie (Live dáta z API):</b> <b>{format_date_sk(start_d)}</b> až <b>{format_date_sk(end_d)}</b><br><br>
-            
-            <b>📚 Odborné lekárske zdroje (European Respiratory Society):</b><br>
-            <i style='font-size: 13px;'>
-            1. <a href="https://publications.ersnet.org/content/erj/61/5/2202469" target="_blank" style="color:#2980b9;">Air pollution and COPD: GOLD 2023 committee report (Dôkazy o vplyve PM2.5 a NO2 na CHOPN)</a><br>
-            2. <a href="https://fileserver-az.core.ac.uk/download/131140694.pdf" target="_blank" style="color:#2980b9;">Vplyv environmentálnych faktorov na respiračné ochorenia (Core.ac.uk)</a>
-            </i>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<div class='info-card'>
+<b style='color: #2980b9; font-size: 18px;'>🫁 Čo je to CHOPN a koho v meste ohrozuje?</b><br>
+<b>Chronická obštrukčná choroba pľúc (CHOPN)</b> je progresívne, trvalé zúženie dýchacích ciest. Pre pacienta s CHOPN predstavujú už mierne zvýšené koncentrácie toxínov priame ohrozenie života, vyvolávajú ťažké záchvaty dusenia (exacerbácie) a masívne zvyšujú riziko okamžitej hospitalizácie a predčasného úmrtia.<br><br>
+<b>👥 Štatistika v Prahe:</b> Odhaduje sa, že CHOPN trpí v ČR približne 8 % populácie. Len v hlavnom meste Prahe to predstavuje <b>viac ako 20 000 aktívne liečených pacientov</b>, pričom celkový počet (vrátane nediagnostikovaných prípadov) dosahuje hranicu <b>až 80 000 ohrozených obyvateľov</b>.<br><br>
+<b>📅 Analyzované obdobie (Live dáta z API):</b> <b>{format_date_sk(start_d)}</b> až <b>{format_date_sk(end_d)}</b><br><br>
+<b>📚 Odborné lekárske zdroje (European Respiratory Society):</b><br>
+<i style='font-size: 13px;'>
+1. <a href="https://publications.ersnet.org/content/erj/61/5/2202469" target="_blank" style="color:#2980b9;">Air pollution and COPD: GOLD 2023 committee report (Dôkazy o vplyve PM2.5 a NO2 na CHOPN)</a><br>
+2. <a href="https://fileserver-az.core.ac.uk/download/131140694.pdf" target="_blank" style="color:#2980b9;">Vplyv environmentálnych faktorov na respiračné ochorenia (Core.ac.uk)</a>
+</i>
+</div>""", unsafe_allow_html=True)
         
         st.markdown("<div class='audit-title'>📊 Executive Summary: Manažérsky prehľad zistení pre krízový štáb</div>", unsafe_allow_html=True)
         

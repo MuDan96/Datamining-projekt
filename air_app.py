@@ -57,6 +57,7 @@ st.markdown("""
 # ============================================
 # 2. DATA ENGINE (ZÍSKAVANIE A ČISTENIE DÁT)
 # ============================================
+# Bezpečné načítanie API kľúča zo Streamlit Secrets (Trezoru)
 try:
     API_KEY = st.secrets["GOLEMIO_API_KEY"]
 except KeyError:
@@ -65,26 +66,31 @@ except KeyError:
 
 BASE_URL = "https://api.golemio.cz/v2"
 
+# --- POMOCNÉ FUNKCIE PRE PREKLAD DÁTUMOV ---
 slovak_days = {
     'Monday': 'Pondelok', 'Tuesday': 'Utorok', 'Wednesday': 'Streda', 
     'Thursday': 'Štvrtok', 'Friday': 'Piatok', 'Saturday': 'Sobota', 'Sunday': 'Nedeľa'
 }
 
 def format_date_sk(d):
+    """Preklad dátumu do tvaru: 02.05.2026 (Sobota)"""
     day_en = d.strftime('%A')
     day_sk = slovak_days.get(day_en, '')
     return f"{d.strftime('%d.%m.%Y')} ({day_sk})"
 
 def get_session():
+    """HTTP relácia s Retry mechanizmom proti výpadkom API."""
     session = requests.Session()
     retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
     session.mount("https://", HTTPAdapter(max_retries=retry))
     session.headers.update({"X-Access-Token": API_KEY})
     return session
 
-def iso_ts(dt): return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+def iso_ts(dt): 
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 def generate_date_chunks(start_dt, end_dt, days=1):
+    """Rozdelenie dátumového rozsahu na menšie bloky (paginácia) proti pádu API."""
     chunks = []
     current = datetime.combine(start_dt, datetime.min.time())
     end = datetime.combine(end_dt, datetime.max.time())
@@ -96,6 +102,7 @@ def generate_date_chunks(start_dt, end_dt, days=1):
 
 @st.cache_data(ttl=1800, show_spinner="Sťahujem dáta z Golemio API...")
 def load_golemio_data(start_date, end_date):
+    """Hlavná ETL (Extract, Transform, Load) funkcia pre ovzdušie."""
     session = get_session()
     try:
         r = session.get(f"{BASE_URL}/airqualitystations", params={"limit": 1000})
@@ -128,6 +135,7 @@ def load_golemio_data(start_date, end_date):
                     if not isinstance(comp, dict): continue
                     val = comp.get('averaged_time', {}).get('value') if isinstance(comp.get('averaged_time'), dict) else comp.get('value')
                     type_str = comp.get('type', 'Unknown').replace('.', '_')
+                    # Čistenie: berieme iba validné (nezáporné) hodnoty
                     if val is not None and val >= 0:
                         enriched_data.append({
                             'name': stations_dict[s_id]['name'], 'lat': stations_dict[s_id]['lat'], 'lon': stations_dict[s_id]['lon'],
@@ -142,6 +150,7 @@ def load_golemio_data(start_date, end_date):
 
 @st.cache_data(ttl=86400) 
 def load_weather(days):
+    """Extrakcia historických meteorologických dát (rýchlosti vetra) z Open-Meteo API."""
     try:
         url = "https://api.open-meteo.com/v1/forecast"
         params = {"latitude": 50.0755, "longitude": 14.4378, "past_days": days, "hourly": "wind_speed_10m"}
@@ -153,6 +162,7 @@ def load_weather(days):
 
 @st.cache_data(ttl=86400)
 def load_parks():
+    """Geopriestorová extrakcia z OpenStreetMap pomocou Overpass API."""
     try:
         q = '[out:json][timeout:25];(way["leisure"="park"](50.0,14.3,50.15,14.6););out center 50;'
         r = requests.post("https://overpass-api.de/api/interpreter", data={'data': q})
@@ -192,6 +202,7 @@ if df_all.empty:
     st.error("Pre tento rozsah API Golemio nevrátilo dáta. Skúste zmeniť dátum.")
     st.stop()
 
+# Vytvorenie pomocných stĺpcov pre agregácie v grafoch
 df_all['hour'] = df_all['datetime'].dt.hour
 df_all['day_name'] = df_all['datetime'].dt.day_name()
 df_all['date_str'] = df_all['datetime'].dt.date
@@ -201,6 +212,8 @@ df_parks = load_parks()
 
 available_pollutants = sorted(df_all['type'].unique())
 
+# VÝPOČET TOXICKÝCH HODÍN: Filtrácia nadlimitných hodnôt a zistenie UNIKÁTNYCH HODÍN,
+# aby sme predišli duplikácii hodín v prípade, že je naraz zamorených viacero staníc.
 toxic_measurements = df_all[
     ((df_all['type'] == 'NO2') & (df_all['value'] > 25)) | 
     ((df_all['type'] == 'PM10') & (df_all['value'] > 45)) | 
@@ -282,8 +295,10 @@ if app_mode == "📄 Metodika a Dokumentácia":
 
     with st.expander("3. Popis vstupních dat a zdroje štúdií"):
         st.write("""
-        * **Medicínske východiská:** Aplikácia čerpá limity zo Svetovej zdravotníckej organizácie (WHO) a interpretáciu stavia na vedeckých publikáciách *European Respiratory Society* týkajúcich sa dopadu jemných prachových častíc na mortalitu CHOPN pacientov.
-        * **Fúzia dát (Data Fusion):**
+        * **Medicínske východiská a Štatistika:** V Prahe žije podľa odhadov až 80 000 obyvateľov s CHOPN (diagnostikovaných vyše 20 000). Aplikácia čerpá limity toxicity zo Svetovej zdravotníckej organizácie (WHO) a interpretáciu stavia na vedeckých publikáciách *European Respiratory Society* týkajúcich sa dopadu jemných prachových častíc na mortalitu pacientov.
+            * *Zdroj 1:* [Air pollution and COPD: GOLD 2023 committee report](https://publications.ersnet.org/content/erj/61/5/2202469)
+            * *Zdroj 2:* [Vplyv environmentálnych faktorov (Core.ac.uk)](https://fileserver-az.core.ac.uk/download/131140694.pdf)
+        * **Fúzia dát (Data Fusion z 3 API):**
             * *Golemio API (v2):* Zber hodinových koncentrácií toxínov (NO2, PM10, PM2.5, atď.) z oficiálnych IoT senzorov mesta.
             * *Open-Meteo API:* Historické meteorologické dáta.
             * *Overpass API (OSM):* Extrakcia polygónov mestskej zelene (záchranných zón).
@@ -305,7 +320,7 @@ if app_mode == "📄 Metodika a Dokumentácia":
         * **Timea Halászová:** Manažment projektu a definícia byznys modelu. *Zodpovednosť: Pivotovanie projektu na CHOPN, integrácia lekárskych faktov a ERS štúdií do dátovej argumentácie.*
         * **Zuzana Mitterová:** Metodika výskumu a vizualizácia. *Zodpovednosť: Aplikácia Data Storytellingu na demonštrovanie dopadov na zdravie pacientov. Mapovanie meraní voči prísnym limitom WHO.*
         * **Bojan Petric:** Data engineering a čistenie dát. *Zodpovednosť: Práca s knižnicou Pandas, matematická deduplikácia pre stanovenie výpočtu "Toxických hodín", fúzia meteorologických dát s environmentálnymi.*
-        * **Daniel Mucska:** Vývoj architektúry a API integrácia. *Zodpovednosť: Návrh cloudovej aplikácie v Streamlite, ošetrenie REST API výpadkov, Release management a správa repozitára.*
+        * **Daniel Mucska:** Vývoj architektúry a API integrácia. *Zodpovednosť: Návrh cloudovej aplikácie v Streamlite, ošetrenie REST API výpadkov, Release management (commitovanie schváleného kódu do repozitára z dôvodu udržania stability CI/CD).*
         """)
 
 # ============================================
@@ -320,16 +335,27 @@ elif app_mode == "📊 Zdravotný Dashboard":
     # --- TAB 0: HLAVNÝ PREHĽAD (EXECUTIVE SUMMARY) ---
     with tabs[0]:
         
-        # INFORMAČNÝ BOX O CHOPN NA VRCHU STRÁNKY
-        st.markdown("""
+        # INFORMAČNÝ BOX O CHOPN NA VRCHU STRÁNKY (Kontext, štatistika, zdroje)
+        st.markdown(f"""
         <div class='info-card'>
-            <b style='color: #2980b9; font-size: 18px;'>ℹ️ Čo je to CHOPN a prečo na tom záleží?</b><br>
-            <b>Chronická obštrukčná choroba pľúc (CHOPN)</b> je progresívne a nevyliečiteľné ochorenie, pri ktorom dochádza k trvalému zúženiu dýchacích ciest. Zatiaľ čo zdravý človek vníma smog len ako "nekomfort", pre pacienta s CHOPN predstavujú už mierne zvýšené koncentrácie toxínov (najmä PM2.5 a NO2) priame ohrozenie života, vyvolávajú ťažké záchvaty dusenia (exacerbácie) a masívne zvyšujú riziko okamžitej hospitalizácie. Tento audit exaktne meria, kedy je mesto pre túto skupinu nebezpečné.
+            <b style='color: #2980b9; font-size: 18px;'>🫁 Čo je to CHOPN a koho v meste ohrozuje?</b><br>
+            <b>Chronická obštrukčná choroba pľúc (CHOPN)</b> je progresívne, trvalé zúženie dýchacích ciest. Pre pacienta s CHOPN predstavujú už mierne zvýšené koncentrácie toxínov priame ohrozenie života, vyvolávajú ťažké záchvaty dusenia (exacerbácie) a masívne zvyšujú riziko okamžitej hospitalizácie a predčasného úmrtia.<br><br>
+            
+            <b>👥 Štatistika v Prahe:</b> Odhaduje sa, že CHOPN trpí v ČR približne 8 % populácie. Len v hlavnom meste Prahe to predstavuje <b>viac ako 20 000 aktívne liečených pacientov</b>, pričom celkový počet (vrátane nediagnostikovaných prípadov) dosahuje hranicu <b>až 80 000 ohrozených obyvateľov</b>.<br><br>
+            
+            <b>📅 Analyzované obdobie (Live dáta z API):</b> <b>{format_date_sk(start_d)}</b> až <b>{format_date_sk(end_d)}</b><br><br>
+            
+            <b>📚 Odborné lekárske zdroje (European Respiratory Society):</b><br>
+            <i style='font-size: 13px;'>
+            1. <a href="https://publications.ersnet.org/content/erj/61/5/2202469" target="_blank" style="color:#2980b9;">Air pollution and COPD: GOLD 2023 committee report (Dôkazy o vplyve PM2.5 a NO2 na CHOPN)</a><br>
+            2. <a href="https://fileserver-az.core.ac.uk/download/131140694.pdf" target="_blank" style="color:#2980b9;">Vplyv environmentálnych faktorov na respiračné ochorenia (Core.ac.uk)</a>
+            </i>
         </div>
         """, unsafe_allow_html=True)
         
         st.markdown("<div class='audit-title'>📊 Executive Summary: Manažérsky prehľad zistení pre krízový štáb</div>", unsafe_allow_html=True)
         
+        # --- VÝPOČTY PRE KPI METRIKY (BIG NUMBERS) ---
         target_pol = 'NO2' if 'NO2' in available_pollutants else available_pollutants[0]
         
         station_means = df_all[df_all['type'] == target_pol].groupby('name')['value'].mean()
@@ -341,39 +367,27 @@ elif app_mode == "📊 Zdravotný Dashboard":
         
         toxic_percentage = round((toxic_hours / total_hours_analyzed) * 100, 1) if total_hours_analyzed > 0 else 0
         
+        # 1. RIADOK: 4 Hlavné KPI karty
         k1, k2, k3, k4 = st.columns(4)
-        k1.markdown(f"""
-        <div class='danger-card' style='text-align:center; padding: 15px;'>
-            <b>Podiel toxicity na zdravie</b><br>
-            <h2 style='color:#e74c3c; margin:0;'>{toxic_percentage} %</h2>
-            <span style='font-size:11px'>Z celkového času bolo zakázané vychádzať</span>
-        </div>""", unsafe_allow_html=True)
-        
-        k2.markdown(f"""
-        <div class='danger-card' style='text-align:center; padding: 15px;'>
-            <b>Najkritickejšia zóna</b><br>
-            <h4 style='color:#e74c3c; margin:0; padding-top:6px; font-size:16px;'>{worst_station}</h4>
-            <span style='font-size:11px'>Extrémne riziko exacerbácie</span>
-        </div>""", unsafe_allow_html=True)
-        
-        k3.markdown(f"""
-        <div class='med-card' style='text-align:center; padding: 15px; border-left: 5px solid #27ae60; background-color: #eafaf1;'>
-            <b>Najbezpečnejšia zóna</b><br>
-            <h4 style='color:#27ae60; margin:0; padding-top:6px; font-size:16px;'>{best_station}</h4>
-            <span style='font-size:11px'>Odporúčané pre CHOPN pacientov</span>
-        </div>""", unsafe_allow_html=True)
-        
-        k4.markdown(f"""
-        <div class='danger-card' style='text-align:center; padding: 15px;'>
-            <b>Najhorší deň v meste</b><br>
-            <h2 style='color:#e74c3c; margin:0;'>{worst_day}</h2>
-            <span style='font-size:11px'>Maximum plošných emisií</span>
-        </div>""", unsafe_allow_html=True)
+        k1.markdown(f"<div class='danger-card' style='text-align:center; padding: 15px;'><b>Podiel toxicity na zdravie</b><br><h2 style='color:#e74c3c; margin:0;'>{toxic_percentage} %</h2><span style='font-size:11px'>Z celkového času analýzy</span></div>", unsafe_allow_html=True)
+        k2.markdown(f"<div class='danger-card' style='text-align:center; padding: 15px;'><b>Najkritickejšia zóna</b><br><h4 style='color:#e74c3c; margin:0; padding-top:6px; font-size:16px;'>{worst_station}</h4><span style='font-size:11px'>Extrémne riziko exacerbácie</span></div>", unsafe_allow_html=True)
+        k3.markdown(f"<div class='med-card' style='text-align:center; padding: 15px; border-left: 5px solid #27ae60; background-color: #eafaf1;'><b>Najbezpečnejšia zóna</b><br><h4 style='color:#27ae60; margin:0; padding-top:6px; font-size:16px;'>{best_station}</h4><span style='font-size:11px'>Odporúčané pre CHOPN pacientov</span></div>", unsafe_allow_html=True)
+        k4.markdown(f"<div class='danger-card' style='text-align:center; padding: 15px;'><b>Najhorší deň v meste</b><br><h2 style='color:#e74c3c; margin:0;'>{worst_day}</h2><span style='font-size:11px'>Maximum plošných emisií</span></div>", unsafe_allow_html=True)
 
-        st.markdown("<hr style='margin-top: 5px; margin-bottom: 25px;'>", unsafe_allow_html=True)
+        # 2. RIADOK: ZOBRAZENIE STRATEGICKÝCH LIMITOV WHO PRIAMO V ÚVODE
+        st.markdown("<p style='margin-bottom: -5px; font-weight: bold; color: #2c3e50;'>⚠️ Sledované toxické mantinely (Bezpečné limity WHO pre citlivé skupiny):</p>", unsafe_allow_html=True)
+        l1, l2, l3, l4, l5 = st.columns(5)
+        l1.markdown(f"<div style='background-color:#ffffff; border:1px solid #e0e0e0; border-radius:5px; padding:10px; text-align:center;'><b>PM2.5 (Jemný prach)</b><br><span style='color:#c0392b; font-weight:bold;'>{limits_who['PM2_5']} µg/m³</span></div>", unsafe_allow_html=True)
+        l2.markdown(f"<div style='background-color:#ffffff; border:1px solid #e0e0e0; border-radius:5px; padding:10px; text-align:center;'><b>PM10 (Hrubý prach)</b><br><span style='color:#c0392b; font-weight:bold;'>{limits_who['PM10']} µg/m³</span></div>", unsafe_allow_html=True)
+        l3.markdown(f"<div style='background-color:#ffffff; border:1px solid #e0e0e0; border-radius:5px; padding:10px; text-align:center;'><b>NO2 (Výfukové plyny)</b><br><span style='color:#c0392b; font-weight:bold;'>{limits_who['NO2']} µg/m³</span></div>", unsafe_allow_html=True)
+        l4.markdown(f"<div style='background-color:#ffffff; border:1px solid #e0e0e0; border-radius:5px; padding:10px; text-align:center;'><b>O3 (Prízemný ozón)</b><br><span style='color:#c0392b; font-weight:bold;'>{limits_who['O3']} µg/m³</span></div>", unsafe_allow_html=True)
+        l5.markdown(f"<div style='background-color:#ffffff; border:1px solid #e0e0e0; border-radius:5px; padding:10px; text-align:center;'><b>SO2 (Oxid siričitý)</b><br><span style='color:#c0392b; font-weight:bold;'>{limits_who['SO2']} µg/m³</span></div>", unsafe_allow_html=True)
+
+        st.markdown("<hr style='margin-top: 15px; margin-bottom: 25px;'>", unsafe_allow_html=True)
 
         colA, colB = st.columns([1, 1])
         with colA:
+            # ZÁVEREČNÝ VERDIKT
             st.markdown("""
             <div class='audit-card' style='border-left: 5px solid #e74c3c; background-color: #fdf2e9;'>
             <h4 style='color: #c0392b; margin-top: 0;'>⚖️ ZÁVEREČNÝ VERDIKT: NEVYHOVUJÚCI STAV PRE PACIENTOV S CHOPN</h4>
@@ -381,6 +395,7 @@ elif app_mode == "📊 Zdravotný Dashboard":
             </div>
             """, unsafe_allow_html=True)
             
+            # Textové zhrnutie modulov 1-4
             st.markdown("""
             <div class='audit-card'>
             <b>Zhrnutie diagnostiky auditu:</b><br><br>
@@ -399,6 +414,7 @@ elif app_mode == "📊 Zdravotný Dashboard":
             df_heatmap['Deň'] = df_heatmap['day_name'].map(slovak_days)
             order_sk = ['Nedeľa', 'Sobota', 'Piatok', 'Štvrtok', 'Streda', 'Utorok', 'Pondelok']
             
+            # Vykreslenie 2D Histogramu (Heatmapy)
             fig_summary = px.density_heatmap(
                 df_heatmap, 
                 x="hour", 
@@ -412,7 +428,7 @@ elif app_mode == "📊 Zdravotný Dashboard":
             fig_summary.update_layout(height=450, margin={"r":0,"t":10,"l":0,"b":0}, xaxis=dict(tickmode='linear', tick0=0, dtick=2))
             st.plotly_chart(fig_summary, use_container_width=True)
 
-   # --- TAB 1: ODPORÚČANIA PRE MAGISTRÁT (MAPA ZÁSAHU) ---
+    # --- TAB 1: ODPORÚČANIA PRE MAGISTRÁT (AKČNÝ PLÁN) ---
     with tabs[1]:
         st.markdown("<div class='audit-title'>📋 Záväzný akčný plán krízovej intervencie (CHOPN)</div>", unsafe_allow_html=True)
         
@@ -426,13 +442,11 @@ elif app_mode == "📊 Zdravotný Dashboard":
         st.markdown("### 📍 FÁZA 1: Okamžitá mitigácia v kritických zónach (Hotspoty)")
         st.write("Lokality označené na mape vykazujú dlhodobo najvyššie koncentrácie toxínov. Pre pacientov s respiračnými ochoreniami sú tieto miesta **život ohrozujúce** a vyžadujú prioritné nasadenie dopravných regulácií.")
         
-        # Identifikácia najhorších staníc
         pol_hotspot = 'NO2' if 'NO2' in df_all['type'].values else df_all['type'].iloc[0]
         df_risk = df_all[df_all['type'] == pol_hotspot].groupby(['name', 'lat', 'lon'])['value'].mean().reset_index()
-        # Zotriedenie od najhoršej po najlepšiu a vyfiltrovanie hornej polovice
+        # Filter najhorších zón
         df_hotspots = df_risk[df_risk['value'] >= df_risk['value'].median()].sort_values('value', ascending=False)
         
-        # Rozdelenie na mapu a dátovú tabuľku s TOP 5 najhoršími stanicami
         col_map, col_table = st.columns([2, 1])
         
         with col_map:
@@ -442,7 +456,6 @@ elif app_mode == "📊 Zdravotný Dashboard":
             
         with col_table:
             st.markdown("<b>Kritické uzly (TOP 5 Red Zones):</b>", unsafe_allow_html=True)
-            # Vykreslenie krásnej tabuľky priamo zo zoradeného dataframe-u
             st.dataframe(
                 df_hotspots[['name', 'value']].head(5).rename(columns={'name': 'Meracia stanica', 'value': f'Ø {pol_hotspot} (µg/m³)'}), 
                 hide_index=True, 
@@ -453,7 +466,6 @@ elif app_mode == "📊 Zdravotný Dashboard":
         st.markdown("---")
         st.markdown("### 🏛️ FÁZA 2: Strategické piliere nápravných opatrení")
         
-        # Pilier 1 (Doprava)
         with st.expander("🚨 PILIER I: Radikálna reorganizácia dopravy (Zníženie rizika exacerbácií)", expanded=True):
             st.markdown("""
             **Cieľ opatrenia:** Redukcia denných priemerov NO2 a jemného prachu v dýchacích zónach o 30 % do 12 mesiacov.
@@ -469,7 +481,6 @@ elif app_mode == "📊 Zdravotný Dashboard":
                 * *Gestor:* ROPID | *Horizont nasadenia:* Okamžite
             """)
 
-        # Pilier 2 (Zeleň a Urbanizmus)
         with st.expander("🌳 PILIER II: Zelená defenzíva a urbanizmus (Fyzické izolačné bariéry)"):
             st.markdown("""
             **Cieľ opatrenia:** Pasívna filtrácia aerosólov a zachovanie dýchateľných "záchranných oáz" pre dispenzarizovaných pacientov.
@@ -482,7 +493,6 @@ elif app_mode == "📊 Zdravotný Dashboard":
                 * *Gestor:* Stavebný úrad MHMP | *Horizont nasadenia:* Q4 2026
             """)
 
-        # Pilier 3 (Zdravotníctvo a prevencia)
         with st.expander("⚕️ PILIER III: Zdravotná prevencia a krízový manažment (Early Warning System)"):
             st.markdown("""
             **Cieľ opatrenia:** Predchádzanie fatálnym respiračným kolapsom a zníženie akútnych príjmov na oddeleniach JIS a ARO.
@@ -495,7 +505,7 @@ elif app_mode == "📊 Zdravotný Dashboard":
                 * *Gestor:* Magistrát hl. m. Prahy | *Horizont nasadenia:* Q3 2026
             """)
 
-    # --- TAB 2: PRIESTOROVÁ TOXICITA ---
+    # --- TAB 2: PRIESTOROVÁ TOXICITA (Mapy modul 1) ---
     with tabs[2]:
         st.markdown("<div class='audit-title'>Modul 1: Lokalizácia akútneho ohrozenia dýchacích ciest</div>", unsafe_allow_html=True)
         st.write("Systém dynamicky mapuje prítomné toxíny v danom čase. Červené body označujú miesta, kde je pacientom s CHOPN prísne neodporúčané zdržiavať sa.")
